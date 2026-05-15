@@ -43,9 +43,11 @@ def build_song_summary() -> dict:
     # 3. Audio Features (aus Tunebat)
     audio_features = bus.get("tunebat", "audio_features", default=None)
 
-    # 4. Lyrics (Exklusiv von Genius)
+    # 4. Genius Daten (Lyrics, Tracklist & Credits)
     genius_data = bus.get("genius", "data", default={})
     lyrics = genius_data.get("lyrics")
+    album_tracklist = genius_data.get("album_tracklist")
+    credits = genius_data.get("credits")
 
     # 5. SongBPM (Analyse & Links)
     songbpm_data = bus.get("songbpm", "data", default={})
@@ -57,6 +59,8 @@ def build_song_summary() -> dict:
         "audio_features": audio_features,
         "analysis": songbpm_data.get("description"),
         "lyrics": lyrics,
+        "album_tracklist": album_tracklist,
+        "credits": credits,
         "links": {
             "genius": genius_data.get("url") or bus.get("genius", "url", default=None),
             "spotify": bus.get("spotify", "url", default=None),
