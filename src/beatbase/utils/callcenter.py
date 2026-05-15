@@ -41,23 +41,33 @@ def build_song_summary() -> dict:
     }
 
     # 3. Audio Features (aus Tunebat)
-    audio_features = bus.get("tunebat", "audio_features", default=None)
+    raw_audio = bus.get("tunebat", "audio_features", default={})
+    audio_features = {
+        "acousticness": raw_audio.get("acousticness", None),
+        "danceability": raw_audio.get("danceability", None),
+        "energy": raw_audio.get("energy", None),
+        "instrumentalness": raw_audio.get("instrumentalness", None),
+        "liveness": raw_audio.get("liveness", None),
+        "speechiness": raw_audio.get("speechiness", None),
+        "happiness": raw_audio.get("happiness", None),
+        "loudness": raw_audio.get("loudness", None),
+    }
 
     # 4. Genius Daten (Lyrics, Tracklist & Credits)
     genius_data = bus.get("genius", "data", default={})
-    lyrics = genius_data.get("lyrics")
-    album_tracklist = genius_data.get("album_tracklist")
-    credits = genius_data.get("credits")
+    lyrics = genius_data.get("lyrics", [])
+    album_tracklist = genius_data.get("album_tracklist", [])
+    credits = genius_data.get("credits", {})
 
     # 5. SongBPM (Analyse & Links)
     songbpm_data = bus.get("songbpm", "data", default={})
 
-    # Zusammenführung in das Master-Objekt
+    # Zusammenführung in das Master-Objekt (festes Schema)
     master = {
-        "meta": {k: v for k, v in meta.items() if v is not None},
-        "music_theory": {k: v for k, v in music_theory.items() if v is not None},
+        "meta": meta,
+        "music_theory": music_theory,
         "audio_features": audio_features,
-        "analysis": songbpm_data.get("description"),
+        "analysis": songbpm_data.get("description", None),
         "lyrics": lyrics,
         "album_tracklist": album_tracklist,
         "credits": credits,
@@ -66,13 +76,11 @@ def build_song_summary() -> dict:
             "spotify": bus.get("spotify", "url", default=None),
             "tunebat": bus.get("tunebat", "url", default=None),
             "songstats": bus.get("songstats", "url", default=None),
-            "songbpm": songbpm_data.get("url"),
+            "songbpm": songbpm_data.get("url", None),
         },
     }
 
-    # Säubern: Entferne leere Top-Level Objekte (außer meta)
-    final_master = {k: v for k, v in master.items() if v is not None and (not isinstance(v, dict) or v)}
-    return final_master
+    return master
 
 
 def get_summary_json() -> str:
