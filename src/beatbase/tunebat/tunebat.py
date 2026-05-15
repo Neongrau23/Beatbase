@@ -52,19 +52,43 @@ def search_on_tunebat(song: str, artists: list[str], headless: bool = HEADLESS, 
             # Zentrales Cookie-Management nutzen
             wait_for_and_dismiss_cookies(active_page)
 
-            # Suche ausführen (Gezielter Zugriff auf den oberen Suchbereich im Header)
-            search_input = active_page.locator(".ant-input-search input[aria-label='Song search field']").first
-            if not search_input.is_visible(timeout=5000):
-                # Fallback auf den mittleren Bereich, falls der Header-Bereich nicht da ist
-                search_input = active_page.get_by_role("main").get_by_role("textbox", name="Song search field")
-            
-            if not search_input.is_visible(timeout=5000):
+            # 1. Zuerst oben in das Suchfeld eingeben
+            try:
+                header_search = active_page.locator("#header").get_by_role("textbox", name="Song search field")
+                header_search.click(timeout=5000)
+                header_search.fill(query)
+                
+                # 2. Mit der Maus auf den Search-Button klicken
+                active_page.locator("#header").get_by_role("button", name="Search").click()
+                
+                # 3. Prüfen, ob Ergebnisse erscheinen
+                results_container = active_page.locator(".hl7iF")
+                try:
+                    results_container.wait_for(state="visible", timeout=3000)
+                except Exception:
+                    log_status("⚠️ Keine direkten Ergebnisse, starte Fallback-Suche (Leerzeichen-Trick)...")
+                    # Wenn keine Ergebnisse erscheinen, einmal unten in das Suchfeld klicken.
+                    # Immer abwechselnd Leerzeichen platzieren und wegmachen, bis es Suchergebnisse gibt (bis zu 4 mal).
+                    main_search = active_page.get_by_role("main").get_by_role("textbox", name="Song search field")
+                    for attempt in range(4):
+                        try:
+                            main_search.click(timeout=3000)
+                            if attempt % 2 == 0:
+                                main_search.fill(query + " ")
+                            else:
+                                main_search.fill(query)
+                            main_search.press("Enter")
+                            
+                            results_container.wait_for(state="visible", timeout=3000)
+                            log_status("✅ Fallback-Suche erfolgreich.")
+                            break
+                        except Exception:
+                            time.sleep(0.5)
+            except Exception as e:
+                log_status(f"⚠️ Sucheingabe fehlgeschlagen: {e}")
                 continue
 
-            search_input.fill(query)
-            search_input.press("Enter")
-
-            # Resultat finden
+            # Resultat finden und HTML speichern
             best_song_locator = find_best_result(active_page, target_string, artists)
             if best_song_locator:
                 break
@@ -179,10 +203,9 @@ def search_on_tunebat(song: str, artists: list[str], headless: bool = HEADLESS, 
                 if dev_mode:
                     log_status("\n🛠️ DEV-MODE: Browser bleibt offen. Drücke ENTER zum Schließen...")
                     input("fertig...")
-                context.close()
-                if browser:
-                    browser.close()
-        return None
+                    if browser:
+                        context.close()
+                        return None
 
 
 # DEF: Haupteinsprungpunkt

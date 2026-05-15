@@ -2,6 +2,7 @@
 
 import os
 import re
+import time
 
 from playwright.sync_api import Locator, Page
 
@@ -40,7 +41,40 @@ def find_best_result(page: Page, target_string: str, artists: list[str]) -> Loca
         except Exception:
             return None
 
-        # Speichere die HTML des Containers
+        # --- Load more Pagination Logik ---
+        # Versuche bis zu 4 Mal, den "Load more"-Button zu klicken
+        for _ in range(4):
+            try:
+                load_more_btn = page.get_by_role("button", name=re.compile(r"Load more", re.I))
+                if load_more_btn.is_visible(timeout=1000):
+                    # Vorherige Anzahl der Ergebnisse merken
+                    previous_count = page.locator(".pDoqI").count()
+                    
+                    load_more_btn.click()
+                    
+                    # Kurz warten, ob mehr Ergebnisse laden
+                    try:
+                        # Warte darauf, dass die Anzahl der .pDoqI-Elemente größer wird
+                        page.wait_for_function(f"document.querySelectorAll('.pDoqI').length > {previous_count}", timeout=3000)
+                    except Exception:
+                        # Wenn nicht mehr Ergebnisse kommen, ganz hoch scrollen, wieder runter scrollen und nochmal klicken.
+                        page.evaluate("window.scrollTo(0, 0)")
+                        time.sleep(0.5)
+                        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                        time.sleep(0.5)
+                        
+                        try:
+                            load_more_btn.click()
+                            page.wait_for_function(f"document.querySelectorAll('.pDoqI').length > {previous_count}", timeout=3000)
+                        except Exception:
+                            break # Hat trotzdem nicht geklappt, breche die Pagination ab
+                else:
+                    break # Kein Button mehr sichtbar
+            except Exception:
+                break # Allgemeiner Fehler beim Button-Handling
+        # ----------------------------------
+
+        # Speichere die HTML des Containers (inklusive aller nachgeladenen Ergebnisse)
         try:
             html_content = results_container.inner_html()
             _save_debug_html(target_string, html_content)
