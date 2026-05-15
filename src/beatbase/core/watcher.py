@@ -1,12 +1,14 @@
 """Zentraler Polling-Watcher.
 
 Pollt Spotify in Intervallen, schreibt den aktuellen Song in den IPC-Layer
-(Datei oder Env, je nach Config) und triggert bei Songwechsel die Extraktoren
-(Songstats, Genius). Browser werden pro Song frisch geöffnet und geschlossen.
+(Datei oder Env, je nach Config) und triggert bei Songwechsel die in `EXTRACTORS`
+deklarierten Quellen. Browser werden pro Song frisch geöffnet und geschlossen.
 """
 
 import os
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from playwright.sync_api import sync_playwright
 
@@ -28,6 +30,66 @@ from beatbase.tunebat.tunebat import search_on_tunebat
 from beatbase.utils.callcenter import get_summary_json
 from beatbase.utils.log import log_status
 from beatbase.utils.now_playing import clear_now_playing, write_now_playing
+
+
+# SECTION: PIPELINE - Deklarative Extraktor-Konfiguration
+@dataclass(frozen=True)
+class ExtractorSpec:
+    """Beschreibt, wie ein Extraktor im Watcher-Loop ausgeführt wird.
+
+    Attributes:
+        name: Hotline-Source-Key (z. B. "tunebat"). Unter diesem Namen werden
+            Resultate im `bus` abgelegt.
+        label: Anzeigename für Log-Ausgaben.
+        enabled: Wird die Quelle in diesem Lauf ausgeführt?
+        search_fn: Die `search_on_*`-Funktion des Extraktors. Erwartet die
+            Signatur `(song, artists, *, headless, page, **extras)`.
+        store_under_data_key: Zusätzlich `bus.set(name, "data", result)` aufrufen.
+            Wird vom Callcenter für komplexe Strukturen (Lyrics, SongBPM-Block) genutzt.
+        direct_url_from: Optional `(source, key)` im Bus, dessen Wert als
+            `direct_url`-Kwarg an `search_fn` durchgereicht wird. Ermöglicht
+            Cross-Extractor-Optimierung (z. B. Tunebat → Songstats).
+    """
+
+    name: str
+    label: str
+    enabled: bool
+    search_fn: Callable[..., dict | None]
+    store_under_data_key: bool = False
+    direct_url_from: tuple[str, str] | None = None
+
+
+# CONFIG: Pipeline-Definition - Reihenfolge ist signifikant.
+# Tunebat zuerst, weil es ggf. einen Songstats-Direktlink liefert.
+EXTRACTORS: list[ExtractorSpec] = [
+    ExtractorSpec(
+        name="tunebat",
+        label="Tunebat",
+        enabled=ENABLE_TUNEBAT,
+        search_fn=search_on_tunebat,
+    ),
+    ExtractorSpec(
+        name="songstats",
+        label="Songstats",
+        enabled=ENABLE_SONGSTATS,
+        search_fn=search_on_songstats,
+        direct_url_from=("tunebat", "songstats_url"),
+    ),
+    ExtractorSpec(
+        name="genius",
+        label="Genius",
+        enabled=ENABLE_GENIUS,
+        search_fn=search_on_genius,
+        store_under_data_key=True,
+    ),
+    ExtractorSpec(
+        name="songbpm",
+        label="SongBPM",
+        enabled=ENABLE_SONGBPM,
+        search_fn=search_on_songbpm,
+        store_under_data_key=True,
+    ),
+]
 
 
 # DEF: Speichert die Zusammenfassung in eine Datei
@@ -61,81 +123,40 @@ def _push_spotify(track: dict) -> None:
     bus.set("spotify", "url", track.get("spotify_url"))
 
 
-# DEF: Songstats-Schritt mit Fehler-Isolation
-def _run_songstats(track: dict, headless: bool = WATCHER_HEADLESS, page=None, direct_url: str | None = None) -> None:
-    log_status("\n--- Songstats ---")
+# DEF: Führt einen einzelnen Extraktor mit Fehler-Isolation aus
+def _run_extractor(spec: ExtractorSpec, track: dict, page, headless: bool) -> None:
+    """Führt `spec.search_fn` aus und legt das Ergebnis im Bus ab.
+
+    Exceptions werden gefangen, damit ein Crash eines Extraktors die Pipeline
+    nicht stoppt — die folgenden Extraktoren laufen weiter.
+    """
+    log_status(f"\n--- {spec.label} ---")
     try:
-        result = search_on_songstats(
+        kwargs: dict = {"headless": headless, "page": page}
+        if spec.direct_url_from:
+            # WHY: explizit default=None — der Hotline-Default ist ein String,
+            # der sonst als (fehlerhafte) URL durchgereicht würde.
+            kwargs["direct_url"] = bus.get(*spec.direct_url_from, default=None)
+
+        result = spec.search_fn(
             track.get("song"),
             list(track.get("artists", [])),
-            headless=headless,
-            page=page,
-            direct_url=direct_url,
+            **kwargs,
         )
-        if result:
-            for k, v in result.items():
-                bus.set("songstats", k, v)
+        if not result:
+            return
+
+        if spec.store_under_data_key:
+            bus.set(spec.name, "data", result)
+        for k, v in result.items():
+            bus.set(spec.name, k, v)
     except Exception as e:
-        log_status(f"❌ Songstats-Fehler: {e}")
-
-
-# DEF: Genius-Schritt mit Fehler-Isolation
-def _run_genius(track: dict, headless: bool = WATCHER_HEADLESS, page=None) -> None:
-    log_status("\n--- Genius ---")
-    try:
-        result = search_on_genius(
-            track.get("song"),
-            list(track.get("artists", [])),
-            headless=headless,
-            page=page,
-        )
-        if result:
-            bus.set("genius", "data", result)
-            # Legacy-Support für Einzelfelder (falls noch woanders genutzt)
-            for k, v in result.items():
-                bus.set("genius", k, v)
-    except Exception as e:
-        log_status(f"❌ Genius-Fehler: {e}")
-
-
-# DEF: Tunebat-Schritt mit Fehler-Isolation
-def _run_tunebat(track: dict, headless: bool = WATCHER_HEADLESS, page=None) -> None:
-    log_status("\n--- Tunebat ---")
-    try:
-        result = search_on_tunebat(
-            track.get("song"),
-            list(track.get("artists", [])),
-            headless=headless,
-            page=page,
-        )
-        if result:
-            for k, v in result.items():
-                bus.set("tunebat", k, v)
-    except Exception as e:
-        log_status(f"❌ Tunebat-Fehler: {e}")
-
-
-# DEF: SongBPM-Schritt mit Fehler-Isolation
-def _run_songbpm(track: dict, headless: bool = WATCHER_HEADLESS, page=None) -> None:
-    log_status("\n--- SongBPM ---")
-    try:
-        result = search_on_songbpm(
-            track.get("song"),
-            list(track.get("artists", [])),
-            headless=headless,
-            page=page,
-        )
-        if result:
-            bus.set("songbpm", "data", result)
-            for k, v in result.items():
-                bus.set("songbpm", k, v)
-    except Exception as e:
-        log_status(f"❌ SongBPM-Fehler: {e}")
+        log_status(f"❌ {spec.label}-Fehler: {e}")
 
 
 # DEF: Verarbeitet einen erkannten Songwechsel
 def _handle_new_track(track: dict, headless: bool = WATCHER_HEADLESS) -> None:
-    """Reset Hotline, IPC schreiben, alle Extraktoren laufen lassen, Summary ausgeben."""
+    """Reset Hotline, IPC schreiben, alle aktivierten Extraktoren ausführen, Summary ausgeben."""
     bus.clear()
     _publish_now_playing(track)
     _push_spotify(track)
@@ -147,16 +168,9 @@ def _handle_new_track(track: dict, headless: bool = WATCHER_HEADLESS) -> None:
         page = context.new_page()
 
         try:
-            if ENABLE_TUNEBAT:
-                _run_tunebat(track, headless=headless, page=page)
-            if ENABLE_SONGSTATS:
-                # Prüfen, ob Tunebat einen direkten Link gefunden hat
-                direct_url = bus.get("tunebat", "songstats_url")
-                _run_songstats(track, headless=headless, page=page, direct_url=direct_url)
-            if ENABLE_GENIUS:
-                _run_genius(track, headless=headless, page=page)
-            if ENABLE_SONGBPM:
-                _run_songbpm(track, headless=headless, page=page)
+            for spec in EXTRACTORS:
+                if spec.enabled:
+                    _run_extractor(spec, track, page, headless)
         finally:
             context.close()
             browser.close()
