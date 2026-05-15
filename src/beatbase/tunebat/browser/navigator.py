@@ -1,10 +1,27 @@
 """Logik zum Navigieren und Finden von Suchergebnissen auf Tunebat."""
 
+import os
+import re
+
 from playwright.sync_api import Locator, Page
 
 from beatbase.tunebat.config import MATCH_THRESHOLD
 from beatbase.utils.log import log_status
 from beatbase.utils.validator import calculate_validation_score
+
+
+def _save_debug_html(target_string: str, html_content: str):
+    """Speichert den HTML-Inhalt für Debugging-Zwecke."""
+    try:
+        os.makedirs("data/tunebat_searches", exist_ok=True)
+        # Ersetze ungültige Dateinamen-Zeichen, wandle Leerzeichen in Bindestriche um
+        safe_name = re.sub(r'[^a-zA-Z0-9\s-]', '', target_string).strip()
+        safe_name = re.sub(r'\s+', '-', safe_name)
+        file_path = f"data/tunebat_searches/{safe_name}.html"
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(html_content)
+    except Exception as e:
+        log_status(f"  ⚠️ Fehler beim Speichern der HTML: {e}")
 
 
 # DEF: find_best_result(page, target_string, artists) -> Locator | None
@@ -22,6 +39,13 @@ def find_best_result(page: Page, target_string: str, artists: list[str]) -> Loca
             results_container.wait_for(state="visible", timeout=5000)
         except Exception:
             return None
+
+        # Speichere die HTML des Containers
+        try:
+            html_content = results_container.inner_html()
+            _save_debug_html(target_string, html_content)
+        except Exception:
+            pass
 
         rows = results_container.locator(".pDoqI")
         count = rows.count()
