@@ -57,10 +57,10 @@ def search_on_tunebat(song: str, artists: list[str], headless: bool = HEADLESS, 
                 header_search = active_page.locator("#header").get_by_role("textbox", name="Song search field")
                 header_search.click(timeout=5000)
                 header_search.fill(query)
-                
+
                 # 2. Mit der Maus auf den Search-Button klicken
                 active_page.locator("#header").get_by_role("button", name="Search").click()
-                
+
                 # 3. Prüfen, ob Ergebnisse erscheinen
                 results_container = active_page.locator(".hl7iF")
                 try:
@@ -78,7 +78,7 @@ def search_on_tunebat(song: str, artists: list[str], headless: bool = HEADLESS, 
                             else:
                                 main_search.fill(query)
                             main_search.press("Enter")
-                            
+
                             results_container.wait_for(state="visible", timeout=3000)
                             log_status("✅ Fallback-Suche erfolgreich.")
                             break
