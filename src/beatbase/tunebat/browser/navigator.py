@@ -6,9 +6,70 @@ import time
 
 from playwright.sync_api import Locator, Page
 
+from beatbase.core.config import TUNEBAT_URL
 from beatbase.tunebat.config import MATCH_THRESHOLD
+from beatbase.utils.cookie_manager import wait_for_and_dismiss_cookies
 from beatbase.utils.log import log_status
 from beatbase.utils.validator import calculate_validation_score
+
+
+# DEF: perform_search(page, query) -> bool
+def perform_search(page: Page, query: str) -> bool:
+    """Fuehrt eine Suche auf Tunebat aus.
+
+    Versucht zuerst die Header-Suche, faellt bei fehlenden Ergebnissen auf die
+    Haupt-Suche mit dem "Leerzeichen-Trick" zurueck.
+
+    Returns:
+        True, wenn das Suchergebnis-Container (``.hl7iF``) sichtbar wurde.
+    """
+    log_status(f"🔗 Suche auf Tunebat: '{query}'")
+    page.goto(TUNEBAT_URL)
+    wait_for_and_dismiss_cookies(page)
+
+    try:
+        header_search = page.locator("#header").get_by_role(
+            "textbox", name="Song search field"
+        )
+        header_search.click(timeout=5000)
+        header_search.fill(query)
+        page.locator("#header").get_by_role("button", name="Search").click()
+
+        results_container = page.locator(".hl7iF")
+        try:
+            results_container.wait_for(state="visible", timeout=3000)
+            return True
+        except Exception:
+            return _fallback_main_search(page, query, results_container)
+    except Exception as e:
+        log_status(f"⚠️ Sucheingabe fehlgeschlagen: {e}")
+        return False
+
+
+# DEF: Fallback-Suche via Main-Search mit Leerzeichen-Trick
+def _fallback_main_search(page: Page, query: str, results_container: Locator) -> bool:
+    """Probiert die Main-Suche mit dem Leerzeichen-Trick (bis zu 4 Versuche).
+
+    Tunebats Suche reagiert manchmal erst nach einer Aenderung der Eingabe;
+    deshalb wird abwechselnd ein Leerzeichen angehaengt und entfernt.
+    """
+    log_status(
+        "⚠️ Keine direkten Ergebnisse, starte Fallback-Suche (Leerzeichen-Trick)..."
+    )
+    main_search = page.get_by_role("main").get_by_role(
+        "textbox", name="Song search field"
+    )
+    for attempt in range(4):
+        try:
+            main_search.click(timeout=3000)
+            main_search.fill(query + " " if attempt % 2 == 0 else query)
+            main_search.press("Enter")
+            results_container.wait_for(state="visible", timeout=3000)
+            log_status("✅ Fallback-Suche erfolgreich.")
+            return True
+        except Exception:
+            time.sleep(0.5)
+    return False
 
 
 def _save_debug_html(target_string: str, html_content: str):
