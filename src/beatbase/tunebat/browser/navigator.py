@@ -3,8 +3,8 @@
 from playwright.sync_api import Locator, Page
 
 from beatbase.tunebat.config import MATCH_THRESHOLD
-from beatbase.tunebat.validator import calculate_validation_score
 from beatbase.utils.log import log_status
+from beatbase.utils.validator import calculate_validation_score
 
 
 # DEF: find_best_result(page, target_string, artists) -> Locator | None

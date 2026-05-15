@@ -1,6 +1,5 @@
 # CONFIG: Songstats-spezifische Konfiguration
 
 MATCH_THRESHOLD = 0.7
-ARTIST_BONUS = 0.2
 SEARCH_TIMEOUT = 2
 RELOAD_TIMEOUT = 30000

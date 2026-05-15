@@ -9,4 +9,3 @@ HEADLESS = True
 
 # Validation Constants
 MATCH_THRESHOLD = 0.8
-ARTIST_BONUS = 0.2

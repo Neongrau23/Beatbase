@@ -8,9 +8,9 @@ from playwright.sync_api import Page
 
 from beatbase.core.config import GENIUS_URL
 from beatbase.genius.config import MATCH_THRESHOLD, PAGE_LOAD_SLEEP
-from beatbase.genius.validator import calculate_validation_score
 from beatbase.utils.cookie_manager import wait_for_and_dismiss_cookies
 from beatbase.utils.log import log_status
+from beatbase.utils.validator import calculate_validation_score
 
 
 # DEF: Sucht Song-URL über Künstler-Profil

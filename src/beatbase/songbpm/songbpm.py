@@ -12,7 +12,6 @@ from playwright.sync_api import sync_playwright
 
 from beatbase.core.config import SENTINEL_NONE, SONGBPM_URL
 from beatbase.songbpm.scraper.extractor import extract_song_info
-from beatbase.songbpm.scraper.extractor import extract_song_info
 from beatbase.utils.cookie_manager import wait_for_and_dismiss_cookies
 from beatbase.utils.log import log_status
 
@@ -35,8 +34,8 @@ def search_on_songbpm(song: str, artists: list[str], headless: bool = True, page
             active_page.fill(search_selector, search_query)
             active_page.keyboard.press("Enter")
 
-
-            active_page.wait_for_url("**/searches/**", timeout=15000)
+            # Warte auf einen Resultat-Link (Song-Links fangen mit /@ an)
+            active_page.wait_for_selector('a[href^="/@"]', timeout=15000)
 
             soup = BeautifulSoup(active_page.content(), "html.parser")
             song_links = []

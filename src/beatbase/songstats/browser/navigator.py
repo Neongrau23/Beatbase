@@ -2,9 +2,9 @@ import time
 
 from beatbase.core.config import SONGSTATS_URL
 from beatbase.songstats.config import MATCH_THRESHOLD
-from beatbase.songstats.validator import calculate_validation_score
 from beatbase.utils.cookie_manager import wait_for_and_dismiss_cookies
 from beatbase.utils.log import log_status
+from beatbase.utils.validator import calculate_validation_score
 
 
 # DEF: find_song_profile(page, queries, target_string, artists) -> bool
