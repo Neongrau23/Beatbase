@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 from playwright.sync_api import BrowserContext, Playwright
 from playwright_stealth import Stealth
@@ -7,8 +7,9 @@ from beatbase.tunebat.config import PROFILE_DIR, USER_AGENT
 
 
 def create_browser_context(p: Playwright, headless: bool = False) -> BrowserContext:
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    profile_dir = os.path.join(base_dir, PROFILE_DIR)
+    # 4 Ebenen hoch: browser/ -> tunebat/ -> beatbase/ -> src/
+    base_dir = Path(__file__).resolve().parents[3]
+    profile_dir = str(base_dir / PROFILE_DIR)
 
     context = p.chromium.launch_persistent_context(
         user_data_dir=profile_dir,
