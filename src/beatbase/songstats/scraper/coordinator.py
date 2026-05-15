@@ -8,7 +8,12 @@ from beatbase.utils.search_variations import extract_featured_artists, generate_
 
 
 # DEF: run_songstats_extraction(page, target_song, target_artists, direct_url) -> dict
-def run_songstats_extraction(page, target_song: str, target_artists: list[str], direct_url: str | None = None) -> dict:
+def run_songstats_extraction(
+    page,
+    target_song: str,
+    target_artists: list[str],
+    direct_url: str | None = None,
+) -> dict:
     """Hauptkoordinator für die Datenbeschaffung eines Songs.
 
     Fokus: NUR Overview-Sektion. Keine Unterseiten (Spotify/Shazam), keine Hover-Metriken.

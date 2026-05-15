@@ -14,7 +14,12 @@ from beatbase.utils.validator import calculate_validation_score
 
 
 # DEF: Sucht Song-URL über Künstler-Profil
-def find_song_url(page: Page, queries: list[str], target_string: str, artists: list[str]) -> str | None:
+def find_song_url(
+    page: Page,
+    queries: list[str],
+    target_string: str,
+    artists: list[str],
+) -> str | None:
     """Sucht auf Genius zuerst den Künstler über mini-artist-card und dann den Song in dessen Liste.
 
     Args:
@@ -69,7 +74,10 @@ def find_song_url(page: Page, queries: list[str], target_string: str, artists: l
                         break
 
         if not target_profile_url:
-            log_status(f"  ⚠️ Kein präzises Profil für '{main_artist}' in den Artist-Cards gefunden.")
+            log_status(
+                f"  ⚠️ Kein präzises Profil für '{main_artist}' "
+                "in den Artist-Cards gefunden."
+            )
             # Fallback: Versuche den ersten Artist-Link überhaupt
             fallback_link = page.locator("mini-artist-card a.mini_card").first
             if fallback_link.count() > 0:

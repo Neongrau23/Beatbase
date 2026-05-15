@@ -14,10 +14,16 @@ from beatbase.core.config import SENTINEL_NONE, SONGBPM_URL
 from beatbase.songbpm.scraper.extractor import extract_song_info
 from beatbase.utils.cookie_manager import wait_for_and_dismiss_cookies
 from beatbase.utils.log import log_status
+from beatbase.utils.now_playing import read_now_playing_data
 
 
 # DEF: search_on_songbpm(query, headless) -> dict | None
-def search_on_songbpm(song: str, artists: list[str], headless: bool = True, page=None) -> dict | None:
+def search_on_songbpm(
+    song: str,
+    artists: list[str],
+    headless: bool = True,
+    page=None,
+) -> dict | None:
     """Führt eine Suche auf SongBPM aus und extrahiert die Details des besten Treffers."""
     search_query = f"{song} {', '.join(artists)}"
 

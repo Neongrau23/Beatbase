@@ -32,7 +32,12 @@ def generate_variations(target_song: str, target_artists: list[str], limit: int 
 
     # Alle Klammern sammeln, Feature-Blocks ignorieren
     parens = re.findall(r"\((.*?)\)", s_norm)
-    meaningful_parens = [re.sub(r"(?i)\b(feat\.?|ft\.?|with|von)\b.*", "", p).strip() for p in parens if not re.search(r"(?i)\b(feat\.?|ft\.?|with|von)\b", p)]
+    feat_pattern = r"(?i)\b(feat\.?|ft\.?|with|von)\b"
+    meaningful_parens = [
+        re.sub(feat_pattern + r".*", "", p).strip()
+        for p in parens
+        if not re.search(feat_pattern, p)
+    ]
     parens_text = meaningful_parens[0] if meaningful_parens else ""
 
     artists_str = " ".join(target_artists)

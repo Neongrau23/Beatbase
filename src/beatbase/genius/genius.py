@@ -39,7 +39,13 @@ def _prepare_search_data(song: str, artists: list[str]) -> tuple[list[str], str,
 
 
 # DEF: Eigentlichen Such- und Extraktions-Workflow ausführen
-def _execute_genius_search(page, song: str, artists: list[str], queries: list[str], target_string: str) -> dict | None:
+def _execute_genius_search(
+    page,
+    song: str,
+    artists: list[str],
+    queries: list[str],
+    target_string: str,
+) -> dict | None:
     """SECTION: EXTRACTION - Führt die Playwright-Interaktionen aus."""
     try:
         log_status(f"🔗 Suche auf Genius: {song} von {', '.join(artists)}")
@@ -50,7 +56,10 @@ def _execute_genius_search(page, song: str, artists: list[str], queries: list[st
         # Abbruch, wenn kein passender Treffer gefunden wurde
         if not song_url:
             log_status("❌ Kein Song gefunden.")
-            return {"lyrics": [{"section": "[Info]", "lines": ["Keine Lyrics Verfügbar"]}], "url": None}
+            return {
+                "lyrics": [{"section": "[Info]", "lines": ["Keine Lyrics Verfügbar"]}],
+                "url": None,
+            }
 
         log_status(f"🔗 Öffne Song: {song_url}")
 
@@ -74,7 +83,12 @@ def _execute_genius_search(page, song: str, artists: list[str], queries: list[st
 
 
 # DEF: Genius Suche (Orchestrator)
-def search_on_genius(song: str, artists: list[str], headless: bool = HEADLESS, page=None) -> dict | None:
+def search_on_genius(
+    song: str,
+    artists: list[str],
+    headless: bool = HEADLESS,
+    page=None,
+) -> dict | None:
     """SECTION: ORCHESTRATION - Sucht auf Genius und gibt extrahierte Song-Details zurück.
 
     Koordiniert Browser-Kontext, Navigation und Extraktion über Playwright.
@@ -104,7 +118,12 @@ def main():
     parser = argparse.ArgumentParser(description="Genius Lyrics & Metadata Scraper (Selenium)")
     parser.add_argument("query", nargs="?", help="Suchbegriff (Fallback: aktueller Song)")
     parser.add_argument("--song", help="Expliziter Songtitel")
-    parser.add_argument("--artist", action="append", default=[], help="Expliziter Künstler (mehrfach möglich)")
+    parser.add_argument(
+        "--artist",
+        action="append",
+        default=[],
+        help="Expliziter Künstler (mehrfach möglich)",
+    )
     parser.add_argument("--headless", action="store_true", help="Browser im Headless-Modus")
     args = parser.parse_args()
 

@@ -10,7 +10,13 @@ from beatbase.core.config import GENIUS_URL
 # DEF: Extrahiert Song-Details
 def extrahiere_song_details_json(soup: BeautifulSoup) -> dict:
     """SECTION: EXTRACTION - Extrahiert Lyrics, Credits und Album-Tracklists aus Genius-HTML."""
-    data = {"track_info": {}, "credits": {}, "lyrics": [], "album_tracklist": [], "about": {"bio": "", "q_and_a": []}}
+    data = {
+        "track_info": {},
+        "credits": {},
+        "lyrics": [],
+        "album_tracklist": [],
+        "about": {"bio": "", "q_and_a": []},
+    }
 
     # MARK: - Track Info (Titel, Artist, Views, Release)
     title_elem = soup.find("h1")
@@ -43,7 +49,11 @@ def extrahiere_song_details_json(soup: BeautifulSoup) -> dict:
                 br.replace_with("\n")
             full_lyrics_text += container.get_text() + "\n"
 
-        lines = [line_text.strip() for line_text in full_lyrics_text.split("\n") if line_text.strip()]
+        lines = [
+            line_text.strip()
+            for line_text in full_lyrics_text.split("\n")
+            if line_text.strip()
+        ]
 
         current_section = "[Lyrics]"
         current_lines = []
@@ -73,7 +83,13 @@ def extrahiere_song_details_json(soup: BeautifulSoup) -> dict:
         contributor_elem = item.find("div", class_=re.compile(r"Credit__Contributor", re.I))
 
         if label_elem and contributor_elem:
-            key = label_elem.get_text(strip=True).lower().replace(" ", "_").replace("©", "copyright").replace("℗", "phonographic_copyright")
+            key = (
+                label_elem.get_text(strip=True)
+                .lower()
+                .replace(" ", "_")
+                .replace("©", "copyright")
+                .replace("℗", "phonographic_copyright")
+            )
             # Extrahiere alle Namen/Links aus dem Contributor-Feld
             names = []
             links = contributor_elem.find_all("a")
@@ -89,7 +105,9 @@ def extrahiere_song_details_json(soup: BeautifulSoup) -> dict:
     # Nutzt die AlbumTracklist__Container Struktur
     tracklist_container = soup.find("ol", class_=re.compile(r"AlbumTracklist__Container", re.I))
     if tracklist_container:
-        tracks = tracklist_container.find_all("li", class_=re.compile(r"AlbumTracklist__Track", re.I))
+        tracks = tracklist_container.find_all(
+            "li", class_=re.compile(r"AlbumTracklist__Track", re.I)
+        )
         for track in tracks:
             track_info = {}
             # Nummer extrahieren
@@ -98,7 +116,9 @@ def extrahiere_song_details_json(soup: BeautifulSoup) -> dict:
                 track_info["number"] = num_elem.get_text(strip=True).replace(".", "")
 
             # Name und Link extrahieren
-            name_container = track.find("div", class_=re.compile(r"AlbumTracklist__TrackName", re.I))
+            name_container = track.find(
+                "div", class_=re.compile(r"AlbumTracklist__TrackName", re.I)
+            )
             if name_container:
                 # Link suchen
                 link_elem = name_container.find("a")

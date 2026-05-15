@@ -42,8 +42,14 @@ def stop_watcher():
 def main():
     """ENTRY: Startet oder stoppt den Watcher."""
     parser = argparse.ArgumentParser(description="Beatbase Orchestrator")
-    parser.add_argument("--stop", action="store_true", help="Stoppt den laufenden Beatbase Watcher")
-    parser.add_argument("--headless", action="store_true", help="Startet den Watcher im Headless-Modus (ohne UI)")
+    parser.add_argument(
+        "--stop", action="store_true", help="Stoppt den laufenden Beatbase Watcher"
+    )
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Startet den Watcher im Headless-Modus (ohne UI)",
+    )
     args = parser.parse_args()
 
     if args.stop:

@@ -18,7 +18,12 @@ class Hotline:
             self.storage[source] = {}
         self.storage[source][key] = value
 
-    def get(self, source: str, key: str, default: Any = "kein anschluss unter dieser variable...") -> Any:
+    def get(
+        self,
+        source: str,
+        key: str,
+        default: Any = "kein anschluss unter dieser variable...",
+    ) -> Any:
         """Holt einen spezifischen Rohwert. Standard-Fehlermeldung bei Fehlen."""
         source_data = self.storage.get(source, {})
         if key not in source_data:

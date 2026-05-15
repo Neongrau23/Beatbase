@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 from playwright.sync_api import BrowserContext, Playwright
 
@@ -11,9 +11,8 @@ def create_browser_context(p: Playwright, headless: bool = False) -> BrowserCont
     um Captchas zu vermeiden und Session-Cookies zu erhalten.
     Nicht löschen!
     """
-    # Das Profil liegt im Root-Verzeichnis des Projekts
-    profile_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", ".profiles", "songstats_profile")
-    profile_dir = os.path.abspath(profile_dir)
+    # 4 Ebenen hoch: browser/ -> songstats/ -> beatbase/ -> src/ -> <root>
+    profile_dir = str(Path(__file__).resolve().parents[4] / ".profiles" / "songstats_profile")
     return p.chromium.launch_persistent_context(
         user_data_dir=profile_dir,
         headless=headless,

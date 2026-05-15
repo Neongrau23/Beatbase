@@ -11,7 +11,7 @@ from beatbase.utils.log import log_status
 
 # DEF: extract_song_info(url) -> dict | None
 def extract_song_info(url: str) -> dict | None:
-    """SECTION: EXTRACTION - Extrahiert Metadaten und die Beschreibung von einer SongBPM Detailseite."""
+    """SECTION: EXTRACTION - Liest Metadaten und Beschreibung einer SongBPM-Detailseite."""
     try:
         response = requests.get(url, timeout=10)
         if response.status_code != 200:
@@ -50,7 +50,8 @@ def extract_song_info(url: str) -> dict | None:
         # Nur gefüllte Werte behalten
         details = {k: v for k, v in details.items() if v is not None}
 
-        log_status(f"✅ SongBPM Details geladen: {details.get('description', 'Keine Beschreibung')[:100]}...")
+        description_preview = details.get("description", "Keine Beschreibung")[:100]
+        log_status(f"✅ SongBPM Details geladen: {description_preview}...")
         log_status(f"📊 SongBPM Daten: {json.dumps(details, indent=4, ensure_ascii=False)}")
         return details
 
