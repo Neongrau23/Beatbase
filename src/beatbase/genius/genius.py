@@ -19,12 +19,9 @@ from beatbase.utils.now_playing import read_now_playing_data
 from beatbase.utils.search_variations import extract_featured_artists, generate_variations
 
 
-# DEF: Genius Suche
-def search_on_genius(song: str, artists: list[str], headless: bool = HEADLESS) -> dict | None:
-    """Sucht auf Genius und gibt extrahierte Song-Details zurück.
-
-    Koordiniert Browser-Kontext, Navigation und Extraktion über Playwright.
-    """
+# DEF: Metadaten für Genius-Suche vorbereiten
+def _prepare_search_data(song: str, artists: list[str]) -> tuple[list[str], str, list[str]]:
+    """SECTION: PREPARATION - Bereitet Künstlerliste und Suchbegriffe vor."""
     # Im Titel versteckte Feature-Künstler (z. B. "ft. XY") extrahieren
     featured = extract_featured_artists(song)
 
@@ -38,6 +35,51 @@ def search_on_genius(song: str, artists: list[str], headless: bool = HEADLESS) -
 
     # Verschiedene Suchanfragen generieren (z. B. mit/ohne Featured-Künstler)
     queries = generate_variations(song, artists)
+    return artists, target_string, queries
+
+
+# DEF: Eigentlichen Such- und Extraktions-Workflow ausführen
+def _execute_genius_search(page, song: str, artists: list[str], queries: list[str], target_string: str) -> dict | None:
+    """SECTION: EXTRACTION - Führt die Playwright-Interaktionen aus."""
+    try:
+        log_status(f"🔗 Suche auf Genius: {song} von {', '.join(artists)}")
+
+        # Genius durchsuchen und die URL des passenden Songs ermitteln
+        song_url = find_song_url(page, queries, target_string, artists)
+
+        # Abbruch, wenn kein passender Treffer gefunden wurde
+        if not song_url:
+            log_status("❌ Kein Song gefunden.")
+            return {"lyrics": [{"section": "[Info]", "lines": ["Keine Lyrics Verfügbar"]}], "url": None}
+
+        log_status(f"🔗 Öffne Song: {song_url}")
+
+        # Song-Seite laden und als BeautifulSoup-Objekt parsen
+        soup = load_song_page(page, song_url)
+
+        # Lyrics und Metadaten aus dem geparsten HTML extrahieren
+        ergebnis_json = extrahiere_song_details_json(soup)
+
+        # Quell-URL zum Ergebnis hinzufügen
+        ergebnis_json["url"] = song_url
+
+        log_status("✅ Vollständige Daten (inkl. Lyrics) extrahiert.")
+        log_status(f"📊 Genius Daten: {json.dumps(ergebnis_json, indent=4, ensure_ascii=False)}")
+        return ergebnis_json
+
+    except Exception as e:
+        # Unerwartete Fehler abfangen und None zurückgeben
+        log_status(f"❌ Fehler bei der Verarbeitung: {e}")
+        return None
+
+
+# DEF: Genius Suche (Orchestrator)
+def search_on_genius(song: str, artists: list[str], headless: bool = HEADLESS) -> dict | None:
+    """SECTION: ORCHESTRATION - Sucht auf Genius und gibt extrahierte Song-Details zurück.
+
+    Koordiniert Browser-Kontext, Navigation und Extraktion über Playwright.
+    """
+    artists, target_string, queries = _prepare_search_data(song, artists)
 
     with sync_playwright() as p:
         # Browser-Kontext starten (mit oder ohne sichtbarem Fenster)
@@ -47,36 +89,7 @@ def search_on_genius(song: str, artists: list[str], headless: bool = HEADLESS) -
         page = context.pages[0] if context.pages else context.new_page()
 
         try:
-            log_status(f"🔗 Suche auf Genius: {song} von {', '.join(artists)}")
-
-            # Genius durchsuchen und die URL des passenden Songs ermitteln
-            song_url = find_song_url(page, queries, target_string, artists)
-
-            # Abbruch, wenn kein passender Treffer gefunden wurde
-            if not song_url:
-                log_status("❌ Kein Song gefunden.")
-                return {"lyrics": [{"section": "[Info]", "lines": ["Keine Lyrics Verfügbar"]}], "url": None}
-
-            log_status(f"🔗 Öffne Song: {song_url}")
-
-            # Song-Seite laden und als BeautifulSoup-Objekt parsen
-            soup = load_song_page(page, song_url)
-
-            # Lyrics und Metadaten aus dem geparsten HTML extrahieren
-            ergebnis_json = extrahiere_song_details_json(soup)
-
-            # Quell-URL zum Ergebnis hinzufügen
-            ergebnis_json["url"] = song_url
-
-            log_status("✅ Vollständige Daten (inkl. Lyrics) extrahiert.")
-            log_status(f"📊 Genius Daten: {json.dumps(ergebnis_json, indent=4, ensure_ascii=False)}")
-            return ergebnis_json
-
-        except Exception as e:
-            # Unerwartete Fehler abfangen und None zurückgeben
-            log_status(f"❌ Fehler bei der Verarbeitung: {e}")
-            return None
-
+            return _execute_genius_search(page, song, artists, queries, target_string)
         finally:
             # Browser-Kontext in jedem Fall schließen (auch bei Fehlern)
             context.close()
