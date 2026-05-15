@@ -2,9 +2,9 @@
 
 Quelle: `src/beatbase/utils/now_playing.py`
 
-Der IPC-Layer entkoppelt die Extraktoren vom Watcher. Damit Songstats und
-Genius auch standalone laufen können, brauchen sie einen Weg, "den aktuell
-spielenden Song" zu erfragen, ohne selbst Spotify zu pollen.
+Der IPC-Layer entkoppelt die Extraktoren vom Watcher. Damit Tunebat, Songstats,
+Genius und SongBPM auch standalone laufen können, brauchen sie einen Weg,
+"den aktuell spielenden Song" zu erfragen, ohne selbst Spotify zu pollen.
 
 ## API
 
@@ -23,7 +23,8 @@ IPC_MODE = "file"   # oder "env"
 
 ## Backend `"file"` (Default)
 
-Schreibt/liest `now_playing.txt` im aktuellen Arbeitsverzeichnis (CWD). Der Inhalt ist ein **JSON-String**.
+Schreibt/liest `now_playing.txt` im aktuellen Arbeitsverzeichnis (CWD). Der
+Inhalt ist ein **JSON-String**.
 
 ### Atomares Schreiben
 
@@ -45,6 +46,11 @@ atomar auf demselben Filesystem.
 Liest/schreibt die Windows-User-Umgebungsvariable `NOW_PLAY` über
 PowerShell-Subprozesse. Auch hier wird der Wert als **JSON** gespeichert.
 
+Einschränkungen:
+- Nur Windows.
+- Eine bereits laufende PowerShell-Session sieht Änderungen erst nach Neustart
+  der Shell — Env-Vars werden bei Process-Start in den Prozess geladen.
+
 ## Sentinel-Wert
 
 ```python
@@ -56,7 +62,7 @@ Bedeutet: "kein Track aktiv". Wird vom Watcher geschrieben, wenn Spotify
 
 ```python
 data = read_now_playing_data()
-if not data["song"] or data["song"] == SENTINEL_NONE:
+if not data.get("song") or data["song"] == SENTINEL_NONE:
     sys.exit(1)  # nichts zu tun
 ```
 
@@ -69,6 +75,7 @@ write_now_playing(track.get("song"), track.get("artists", []))
 ```
 
 Das gespeicherte JSON sieht so aus:
+
 ```json
 {
   "song": "Blinding Lights",
@@ -76,7 +83,9 @@ Das gespeicherte JSON sieht so aus:
 }
 ```
 
-Songstats, Genius und Tunebat nutzen `read_now_playing_data()`, um Songtitel und Künstlerliste sauber getrennt zu erhalten. Ein Fallback für das alte Format ("Song von Artist") ist in der Lesefunktion integriert.
+Tunebat, Songstats, Genius und SongBPM nutzen `read_now_playing_data()`, um
+Songtitel und Künstlerliste sauber getrennt zu erhalten. Ein Fallback für das
+alte String-Format (`"Song von Artist"`) ist in der Lesefunktion integriert.
 
 Es gibt keinen Auto-Sync zwischen Backends. Wenn du `IPC_MODE` umschaltest,
 während Beatbase läuft, sehen Konsumenten den alten Wert noch. Im Zweifel

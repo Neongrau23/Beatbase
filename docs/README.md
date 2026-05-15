@@ -2,23 +2,25 @@
 
 Willkommen in der technischen Dokumentation von **Beatbase**, einem Aggregator für
 Musik-Metadaten. Beatbase erkennt den aktuell spielenden Spotify-Track und sammelt
-parallel Daten aus **Spotify** (API), **Songstats** (Playwright-Scraper) und
-**Genius** (Selenium-Scraper).
+parallel Daten aus **Spotify** (API), **Tunebat**, **Songstats**, **Genius** und
+**SongBPM** (alle Playwright-Scraper).
 
 ## Übersicht
 
 ```
 Spotify API ─┐
-             ├─► Hotline (bus) ──► Callcenter ──► Strukturierte Song-Daten
-Songstats ───┤
-Genius ──────┘
+Tunebat ─────┤
+Songstats ───┼─► Hotline (bus) ──► Callcenter ──► Strukturierte Song-Daten
+Genius ──────┤
+SongBPM ─────┘
 ```
 
 Ein zentraler **Watcher** pollt Spotify in einem festen Intervall, erkennt
-Songwechsel über die Track-ID und triggert die Browser-Extraktoren. Rohdaten
-landen im **Hotline**-Bus; das **Callcenter** baut daraus eine strukturierte
-Zusammenfassung. Standalone-Aufrufe der Extraktoren sind ebenfalls möglich,
-sie greifen über einen **IPC-Layer** auf den aktuell spielenden Song zu.
+Songwechsel über die Track-ID und triggert die Browser-Extraktoren in einer
+deklarativen Pipeline (`EXTRACTORS` in `core/watcher.py`). Rohdaten landen im
+**Hotline**-Bus; das **Callcenter** baut daraus eine strukturierte Zusammenfassung
+nach einem festen Master-Schema. Standalone-Aufrufe der Extraktoren sind ebenfalls
+möglich, sie greifen über einen **IPC-Layer** auf den aktuell spielenden Song zu.
 
 ## Inhaltsverzeichnis
 
@@ -31,15 +33,17 @@ sie greifen über einen **IPC-Layer** auf den aktuell spielenden Song zu.
 ### Architektur
 
 - [Architekturüberblick](architecture.md) — Designentscheidungen, Datenfluss
-- [Watcher](modules/watcher.md) — Zentraler Polling-Loop
-- [Hotline & Callcenter](modules/hotline-callcenter.md) — Bus-Pattern
+- [Watcher](modules/watcher.md) — Zentraler Polling-Loop & Pipeline
+- [Hotline & Callcenter](modules/hotline-callcenter.md) — Bus-Pattern + Schema
 - [IPC-Layer](modules/ipc.md) — Datei- oder Env-basierte Kommunikation
 
 ### Extraktoren
 
 - [Spotify](modules/spotify.md) — API-Zugriff via `spotipy`
-- [Songstats](modules/songstats.md) — Playwright-Scraper mit Highcharts-Maus-Trick
-- [Genius](modules/genius.md) — Selenium-Scraper mit BeautifulSoup-Parsing
+- [Tunebat](modules/tunebat.md) — Playwright + Stealth, BPM/Key/Audio-Features
+- [Songstats](modules/songstats.md) — Playwright + BS4, Overview-Daten
+- [Genius](modules/genius.md) — Playwright + BS4, Lyrics & Credits
+- SongBPM — Playwright + BS4, Vibe-Beschreibung (siehe [CLI](cli.md))
 
 ### Mitwirken
 
@@ -50,30 +54,39 @@ sie greifen über einen **IPC-Layer** auf den aktuell spielenden Song zu.
 
 ```
 src/beatbase/
-├── __main__.py              # Entry Point → startet den Watcher
+├── __main__.py              # Entry Point → Watcher mit PID-File-Singleton
 ├── core/
-│   ├── config.py            # IPC-Mode, Polling, Sentinel
-│   ├── watcher.py           # Zentraler Polling-Loop
-│   ├── hotline.py           # Globaler Daten-Bus
+│   ├── config.py            # IPC, Polling, ENABLE_*-Toggles, BEATBASE_DB_PATH
+│   ├── watcher.py           # Polling-Loop + deklarative EXTRACTORS-Pipeline
+│   ├── hotline.py           # Globaler Daten-Bus (Hotline)
 │   └── db.py                # Schreibzugriff auf externe SQLite-DB
 ├── spotify/
 │   └── spotify_current.py   # Spotify-API-Extraktor
+├── tunebat/
+│   ├── tunebat.py           # CLI + search_on_tunebat()
+│   ├── config.py            # Tunebat-Konstanten
+│   ├── browser/             # Playwright + Stealth, Navigation, Profile-Warmup
+│   └── scraper/             # Datenextraktion von der Song-Seite
 ├── songstats/
 │   ├── songstats.py         # CLI + search_on_songstats()
 │   ├── config.py            # Songstats-Konstanten
-│   ├── validator.py         # Match-Scoring
-│   ├── browser/             # Playwright-Kontext & Navigation
-│   └── scraper/             # DOM-Extraktion (Overview, Metrics, Platforms)
+│   ├── browser/             # Playwright-Kontext, Navigation
+│   └── scraper/             # Overview-Extraktion
 ├── genius/
 │   ├── genius.py            # CLI + search_on_genius()
 │   ├── config.py            # Genius-Konstanten
-│   ├── browser/             # Selenium-Kontext & Navigation
-│   └── scraper/             # BeautifulSoup-Extraktion
+│   ├── browser/             # Playwright-Kontext, Navigation
+│   └── scraper/             # BeautifulSoup-Extraktion (Lyrics, Credits)
+├── songbpm/
+│   ├── songbpm.py           # CLI + search_on_songbpm()
+│   └── scraper/             # Vibe-Beschreibung
 └── utils/
-    ├── callcenter.py        # Daten-Aggregation
-    ├── now_playing.py       # IPC-Layer
+    ├── callcenter.py        # Daten-Aggregation mit deklarativem Schema
+    ├── now_playing.py       # IPC-Layer (file oder env)
     ├── log.py               # Stderr-Logger
-    └── search_variations.py # Suchbegriff-Generierung
+    ├── cookie_manager.py    # Zentrales Cookie-Banner-Handling
+    ├── validator.py         # Zentrales Fuzzy-Match-Scoring
+    └── search_variations.py # Generierung von Suchbegriff-Variationen
 ```
 
 ## Schnellstart
@@ -87,6 +100,9 @@ uv run playwright install chromium
 
 # Watcher starten
 uv run python -m beatbase
+
+# Watcher beenden (von woanders)
+uv run python -m beatbase --stop
 ```
 
 Mehr Details findest du in [Getting Started](getting-started.md).

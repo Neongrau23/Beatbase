@@ -81,8 +81,15 @@ f-Strings (kein `%`-Formatting, kein `.format`).
 ### Exceptions
 
 Spezifische Exceptions fangen, **kein nacktes `except:`**. Die Ausnahme
-sind die Watcher-Try-Blöcke um die Extraktoren — dort ist `except Exception
-as e` bewusst breit, damit ein Scraper-Crash den Loop nicht killt.
+sind die Try-Blöcke um Extraktoren in `_run_extractor` — dort ist
+`except Exception` bewusst breit, damit ein Scraper-Crash die Pipeline
+nicht killt.
+
+### Return-Werte
+
+`search_on_*`-Funktionen liefern **`dict | None`** — `None` bei Fehler oder
+leerem Ergebnis. Keine `{}`-Sentinel zurückgeben (Verwirrungsfaktor mit echten
+leeren Strukturen).
 
 ### Logging
 
@@ -100,7 +107,7 @@ log_status("🎵 Neuer Song erkannt")
 So bleibt stdout pipe-bar:
 
 ```powershell
-uv run python -m beatbase.songstats.songstats --song X --artist Y | jq .
+uv run python -m beatbase.tunebat.tunebat --song X --artist Y | jq .
 ```
 
 ### Line-Length
@@ -125,6 +132,9 @@ Konfiguration in `pyproject.toml`:
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
 ```
 
 ## Tests
@@ -132,48 +142,53 @@ target-version = "py311"
 Aktuell **keine Test-Suite**. `tests/` ist leer. Empfehlung:
 
 - Tests spiegeln die `src/`-Struktur:
-  `tests/songstats/test_validator.py` testet `src/beatbase/songstats/validator.py`.
-- Pytest verwenden (`uv add --dev pytest`).
-- Browser-Extraktoren mit Cassette-Pattern (z. B.
-  [`vcrpy`](https://vcrpy.readthedocs.io/) oder gespeicherte HTML-Fixtures
-  unter `tests/fixtures/`) — keine echten Live-Calls in CI.
-- Bus / Callcenter sind unit-test-freundlich (`bus.clear()` vor jedem Test).
+  `tests/utils/test_callcenter.py` testet `src/beatbase/utils/callcenter.py`.
+- Pytest verwenden (bereits unter `[project.optional-dependencies] dev` in
+  `pyproject.toml`).
+- Browser-Extraktoren mit HTML-Fixtures testen (z. B. unter
+  `tests/fixtures/songstats/<song-id>.html`) — keine echten Live-Calls. Die
+  reinen Extraktions-Funktionen (`_extract_overview`, `extract_song_data`,
+  `extrahiere_song_details_json`) bekommen ein BeautifulSoup-Objekt bzw. eine
+  Playwright-Mock-Page und können so deterministisch geprüft werden.
+- Bus / Callcenter sind unit-test-freundlich (`bus.clear()` vor jedem Test,
+  Schema-Tests für `_pick` / `_join_list` / `_from_dict`).
 
 ## Erweiterung
 
 ### Neue Datenquelle hinzufügen
 
 1. Modul-Verzeichnis anlegen: `src/beatbase/lastfm/`.
-2. Public-Entry schreiben:
+2. Submodul-Struktur (für Browser-Quellen): `browser/context.py`,
+   `browser/navigator.py`, `scraper/extractor.py`.
+3. Public-Entry schreiben:
    ```python
-   def search_on_lastfm(song: str, artists: list[str]) -> dict:
-       ...
+   def search_on_lastfm(
+       song: str,
+       artists: list[str],
+       headless: bool = False,
+       page=None,
+   ) -> dict | None: ...
    ```
-3. Im Watcher (`core/watcher.py`) parallel zu `_run_songstats` einen
-   `_run_lastfm` einbauen. Rohdaten in den Bus:
-   ```python
-   for k, v in result.items():
-       bus.set("lastfm", k, v)
-   ```
-4. Falls Felder ins Summary einfließen sollen, `utils/callcenter.py`
-   ergänzen.
-5. CLI-Modul für Standalone-Aufruf inklusive IPC-Fallback bauen.
+4. Im Watcher (`core/watcher.py`) eine `ExtractorSpec` zur `EXTRACTORS`-Liste
+   hinzufügen — Reihenfolge beachten. Optional `ENABLE_LASTFM`-Toggle in
+   `core/config.py`.
+5. Falls Felder ins Master-Summary einfließen sollen, das entsprechende
+   Schema-Dict in `utils/callcenter.py` ergänzen (z. B. neue `Source` in
+   `MUSIC_THEORY` oder neuen Block).
+6. CLI-Modul für Standalone-Aufruf inklusive IPC-Fallback bauen.
 
-### Neues Audio-Feature aus Songstats
+### Neue Felder ins Master-Schema
 
-Songstats fügt von Zeit zu Zeit neue Felder zum Spider-Chart hinzu. Die
-Liste in `scraper/metrics.py::results` updaten — sonst gehen Werte aus
-überlappenden Null-Punkten verloren.
-
-### Neuen Tooltip-Format-Fall
-
-Im `metrics.py`-Parser sind drei Fälle abgedeckt: Prozent (`%`),
-Dezibel (`DB`), und Fallback-Zahl. Bei neuen Einheiten dort ergänzen,
-nicht im Aufrufer.
+Das Master-Schema lebt in `utils/callcenter.py` als `META`,
+`MUSIC_THEORY`, `LINKS`-Dicts. Felder dort ergänzen — kein anderer Code muss
+sich ändern.
 
 ## Git-Hinweise
 
-- `.spotify_cache`, `now_playing.txt`, `songstats_profile/`,
-  `genius_profile_selenium/`, `.env`, `.venv/` sind in `.gitignore` —
-  vor dem Commit prüfen, dass sie nicht versehentlich versioniert werden.
+- `.spotify_cache`, `now_playing.txt`, `.beatbase.pid`, `.profiles/`, `.env`,
+  `.venv/`, `data/` sind in `.gitignore` — vor dem Commit prüfen, dass sie
+  nicht versehentlich versioniert werden.
 - Browser-Profile sind groß (>100 MB) — niemals committen.
+- Commit-Konvention: `type(scope): kurze beschreibung` auf Deutsch.
+  Beispiele aus der History: `refactor(watcher): ...`,
+  `fix(tunebat): ...`, `chore(gitignore): ...`.

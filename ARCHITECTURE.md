@@ -1,56 +1,48 @@
-# 🏗️ Architektur & Konzepte
+# Architektur & Konzepte
 
-Dieses Dokument beschreibt die architektonischen Entscheidungen und Muster, die in **Beatbase** verwendet werden.
+Kurzüberblick. Die vollständige Doku liegt in
+[`docs/architecture.md`](docs/architecture.md).
 
-## 📞 Das Hotline / Callcenter Muster
+## Hotline / Callcenter
 
-Beatbase verwendet einen zweistufigen Datenfluss, um Daten aus verschiedenen Quellen (Spotify, Songstats, Genius) zu aggregieren, ohne die Extraktoren mit der finalen Datenstruktur zu belasten.
+Zweistufiger Datenfluss zur Quellenagnostischen Aggregation:
 
-### 1. Hotline (`core/hotline.py`)
-Die **Hotline** ist ein globaler, unstrukturierter Key-Value-Speicher (`bus`). 
-- **Aufgabe:** Extraktoren werfen ihre Rohdaten (Scraping-Ergebnisse, API-Antworten) "nackt" in den Speicher.
-- **Vorteil:** Ein neuer Extraktor muss nicht wissen, wie das finale `Song`-Objekt aussieht. Er speichert einfach alles, was er findet, unter seinem Quellennamen (z.B. `"songstats"`).
+- **Hotline** (`core/hotline.py`) — globaler, unstrukturierter Key-Value-Bus.
+  Jeder Extraktor wirft seine Rohdaten unter seinem Quellennamen rein.
+- **Callcenter** (`utils/callcenter.py`) — deklaratives Schema (`META`,
+  `MUSIC_THEORY`, `LINKS`). Pro Feld eine geordnete Source-Liste; die erste
+  truthy Quelle gewinnt.
 
-### 2. Callcenter (`utils/callcenter.py`)
-Das **Callcenter** ist die Logik-Schicht, die auf die Hotline zugreift.
-- **Aufgabe:** Es liest alle verfügbaren Rohdaten aus dem `bus` und setzt sie zu einer strukturierten Ansicht (z.B. `build_song_summary()`) zusammen.
-- **Entscheidungsgewalt:** Hier wird entschieden, welche Quelle Vorrang hat (z.B. "Nimm das Release-Datum von Spotify, außer Songstats hat ein älteres").
+## Extraktoren
 
----
+| Quelle | Modul | Technologie |
+|--------|-------|-------------|
+| Spotify | `spotify/` | `spotipy` + OAuth2 |
+| Tunebat | `tunebat/` | Playwright + `playwright-stealth` |
+| Songstats | `songstats/` | Playwright + BeautifulSoup |
+| Genius | `genius/` | Playwright + BeautifulSoup |
+| SongBPM | `songbpm/` | Playwright + BeautifulSoup |
 
-## 🛰️ Extraktoren & Technologien
+Alle Browser-Extraktoren nutzen persistente Profile in `.profiles/`.
 
-Wir unterscheiden zwischen zwei Arten von Extraktoren:
+## Watcher
 
-### API-Extraktoren (`spotify/`)
-- **Spotify:** Nutzt die offizielle Web-API (`spotipy`).
-- **Technik:** Reine HTTP-Requests, OAuth2 mit lokalem Token-Caching (`.spotify_cache`).
+`core/watcher.py` ist der Orchestrator. Eine deklarative `EXTRACTORS`-Liste
+beschreibt die Pipeline (Tunebat → Songstats → Genius → SongBPM).
 
-### Core/Browser-Extraktoren (`genius/ and songstats/`)
-Für Seiten ohne (öffentliche) API nutzen wir Browser-Automatisierung.
-- **Songstats:** Playwright (Chromium).
-  - *Besonderheit:* Extrahiert Daten aus Highcharts-SVGs durch physische Mausbewegungen auf Koordinaten, da die SVGs keine semantischen Klassen besitzen.
-- **Genius:** Selenium (Chrome).
-  - *Besonderheit:* Nutzt BeautifulSoup zur Deep-Extraction von Lyrics und Credits.
+Pro Songwechsel wird **ein** Playwright-Browser geöffnet und an alle
+Extraktoren weitergegeben. Tunebat liefert dabei einen Direktlink, den
+Songstats nutzt, um die eigene Suche zu überspringen.
 
----
+## IPC-Layer
 
-## 🔄 Interprozesskommunikation (IPC) via `NOW_PLAY`
+`utils/now_playing.py` — Datei- oder Env-basiert (`IPC_MODE`-Konstante).
+Format: JSON mit `{"song": ..., "artists": [...]}`. Atomar geschrieben.
 
-Da die verschiedenen Extraktoren oft entkoppelt voneinander laufen (z.B. Spotify-Polling im Hintergrund, Genius im Watch-Mode), kommunizieren sie über eine Windows-User-Umgebungsvariable: `NOW_PLAY`.
+## Externe DB
 
-1. **Producer:** `spotify_current.py` schreibt den aktuellen Songstring (z.B. `"Blinding Lights von The Weeknd"`) in `NOW_PLAY`.
-2. **Consumer:** `genius.py --auto` oder `songstats.py` lesen diese Variable als Fallback, wenn kein expliziter Suchbegriff übergeben wurde.
+Optional via `--track-id`-Flag in Songstats. Pfad: `BEATBASE_DB_PATH`
+(Default `C:/workspace/beatbase/spotify.db`, via Env-Var überschreibbar).
+Gehört nicht zum Repo.
 
----
-
-## 🔍 Suchlogik (Variationen)
-
-Aufgrund der unterschiedlichen Suchalgorithmen der Zielseiten existieren zwei Varianten der Suchbegriff-Generierung:
-- **`utils/search_variations.py`:** Generische Logik für die meisten Quellen.
-- **Inline in `songstats.py`:** Aggressivere Generierung mittels `itertools.permutations`, da Songstats extrem sensitiv auf die Wortreihenfolge reagiert.
-
----
-
-## 💾 Externe Abhängigkeiten
-`songstats.py` schreibt bei Angabe einer `--track-id` direkt in eine SQLite-Datenbank unter `C:/workspace/beatbase/spotify.db`. Diese DB gehört nicht zum Repository, sondern zu einem übergeordneten System.
+Für Details siehe die Dokumentation unter [`docs/`](docs/).

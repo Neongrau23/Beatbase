@@ -71,12 +71,12 @@ Das passende Setup im Spotify Developer Dashboard ist erforderlich.
 uv run python -m beatbase.spotify.spotify_current
 ```
 
-Schreibt den Songstring (`"Title von Artists"`) via `write_now_playing` in
-den IPC-Layer und gibt ihn zusätzlich auf stdout aus.
+Schreibt das JSON (`{"song": ..., "artists": [...]}`) via `write_now_playing`
+in den IPC-Layer und gibt eine Statusmeldung zusätzlich auf stdout aus.
 
 Wenn nichts läuft:
 
-```powershell
+```
 ⏸️ Aktuell wird kein Song auf Spotify abgespielt.
 ```
 
@@ -105,3 +105,7 @@ bus.set("spotify", "isrc", ...)
 bus.set("spotify", "release_date", ...)
 bus.set("spotify", "url", ...)
 ```
+
+Im Gegensatz zu den Browser-Extraktoren ist Spotify **nicht** Teil der
+`EXTRACTORS`-Pipeline — er liefert die Daten, die den Pipeline-Lauf überhaupt
+auslösen.

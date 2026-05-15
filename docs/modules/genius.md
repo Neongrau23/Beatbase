@@ -2,121 +2,163 @@
 
 Quellen:
 - `src/beatbase/genius/genius.py` — CLI + Public-Entry
-- `src/beatbase/genius/browser/` — Selenium-Treiber & Navigation
-- `src/beatbase/genius/scraper/extractor.py` — BeautifulSoup-Parsing
-- `src/beatbase/genius/validator.py` — Scoring-Logik
+- `src/beatbase/genius/browser/context.py` — Playwright-Kontext mit persistentem Profil
+- `src/beatbase/genius/browser/navigator.py` — Suche & Profil-Auswahl
+- `src/beatbase/genius/scraper/extractor.py` — BeautifulSoup-Extraktion (Lyrics, Credits, Album)
 
-Browser-Scraper für [genius.com](https://genius.com). Liefert primär Lyrics und die validierte Song-URL.
+Browser-Scraper für [genius.com](https://genius.com). Liefert Lyrics
+sektionsweise, Credits, Album-Tracklist und die validierte Song-URL.
+
+> **Hinweis:** Genius lief früher auf Selenium. Seit `refactor(genius): ...`
+> ist das gesamte Modul auf Playwright (Chromium) umgestellt. Selenium ist
+> **nicht** mehr im Dependency-Set.
 
 ## Public-Entry
 
 ```python
-search_on_genius(song: str, artists: list[str], headless: bool = HEADLESS) -> dict | None
+search_on_genius(
+    song: str,
+    artists: list[str],
+    headless: bool = HEADLESS,
+    page=None,
+) -> dict | None
 ```
 
-Verwaltet den Selenium-Lifecycle und koordiniert Suche sowie Extraktion:
+Verwaltet den Playwright-Lifecycle und koordiniert Suche sowie Extraktion:
 
 ```python
-driver = create_driver(headless=headless)
-try:
-    # Suche mit Variations und Scoring
-    song_url = find_song_url(driver, queries, target_string, artists)
-    if not song_url:
-        return None
+artists, target_string, queries = _prepare_search_data(song, artists)
 
-    # Laden und Scrollen
-    soup = load_song_page(driver, song_url)
+if page:
+    return _execute_genius_search(page, song, artists, queries, target_string)
 
-    # Extraktion
-    ergebnis_json = extrahiere_song_details_json(soup)
-    ergebnis_json["url"] = song_url
-    return ergebnis_json
-finally:
-    driver.quit()
+with sync_playwright() as p:
+    context = create_playwright_context(p, headless=headless)
+    new_page = context.pages[0] if context.pages else context.new_page()
+    try:
+        return _execute_genius_search(new_page, song, artists, queries, target_string)
+    finally:
+        context.close()
 ```
+
+Mit `page` läuft Genius auf dem Browser-Kontext des Watchers; ohne `page`
+öffnet `search_on_genius` selbst einen persistenten Kontext.
 
 ## Pipeline
 
 ```
 search_on_genius(song, artists)
   │
-  ├─ generate_variations()                ← Aus beatbase.utils
-  ├─ create_driver(headless)              ← Persistentes Profil
+  ├─ _prepare_search_data()                ← Featured-Artists + Variationen
   │
-  ├─ find_song_url()                      ← Suche über Genius-Suchleiste
-  │     │
-  │     ├─ Iteriert über Such-Variationen
-  │     ├─ Berechnet Validation-Score (validator.py)
-  │     └─ Bester Treffer (> Threshold)   → Song-URL
-  │
-  ├─ load_song_page(driver, url)
-  │     │
-  │     ├─ goto(url)
-  │     ├─ scroll(50% + 100%)             ← Lazy-Lyrics laden
-  │     └─ wait for "[data-lyrics-container='true']"
-  │
-  └─ extrahiere_song_details_json(soup)   ← BS4-Parsing (nur Lyrics)
+  └─ _execute_genius_search()
+      │
+      ├─ find_song_url(page, queries, ...)
+      │     │
+      │     ├─ Sucht über Genius-Suchleiste / Artist-Profil
+      │     ├─ Iteriert über Such-Variationen
+      │     ├─ Berechnet calculate_validation_score (utils/validator.py)
+      │     └─ Bester Treffer (> MATCH_THRESHOLD) → Song-URL
+      │
+      ├─ load_song_page(page, url)
+      │     │
+      │     ├─ goto(url)
+      │     ├─ Scrollt (50% + 100%)        ← Lazy-Lyrics laden
+      │     └─ wait for "[data-lyrics-container='true']"
+      │
+      └─ extrahiere_song_details_json(soup) ← BS4-Parsing
 ```
 
-## Migration & Fehlerbehebung (Playwright)
+## Persistentes Browser-Profil
 
-Beim Umstieg von Selenium auf Playwright sind folgende Punkte entscheidend:
+`browser/context.py`:
 
-- **Browser-Crashes (TargetClosedError/Exit Code 21):** Diese treten meist auf, wenn Chromium-Prozesse (oft als "Zombies" im Hintergrund) den Profil-Ordner sperren.
-  - *Lösung:* Aktive `chrome.exe` Prozesse über den Task-Manager oder `taskkill /F /IM chrome.exe /T` beenden.
-- **Absolute Pfad-Berechnung:** Um Konflikte durch wechselnde Arbeitsverzeichnisse (`os.getcwd()`) zu vermeiden, wird der Profil-Pfad nun absolut berechnet:
-  ```python
-  base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-  profile_dir = os.path.join(base_dir, PROFILE_DIR)
-  ```
-- **Stealth-Flags:** Um Cloudflare-Challenges zu minimieren, nutzen wir:
-  ```python
-  args=["--disable-blink-features=AutomationControlled"]
-  ```
+```python
+base_dir = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
+profile_dir = os.path.join(base_dir, PROFILE_DIR)
+
+context = playwright.chromium.launch_persistent_context(
+    user_data_dir=profile_dir,
+    headless=headless,
+    user_agent=USER_AGENT,
+    args=["--disable-blink-features=AutomationControlled"],
+)
+```
+
+Das Profil liegt unter `<root>/.profiles/genius_profile_playwright/`, ist in
+`.gitignore` und darf nicht gelöscht werden. Cookies / Captcha-Bypass-State
+sind dort gespeichert.
 
 ## Suchstrategie & Validierung
 
-Genius nutzt nun eine mehrstufige Suche (`find_song_url`):
-1. **Variationen:** Erzeugt verschiedene Suchstrings (z.B. mit/ohne Features).
-2. **Scoring:** Jedes Suchergebnis wird gegen den `target_string` (Titel + Artists) geprüft (`calculate_validation_score`).
-3. **Threshold:** Nur Ergebnisse über `MATCH_THRESHOLD` (Standard: 0.8) werden akzeptiert. Ein Bonus wird für Übereinstimmungen bei Künstlernamen und Begriffen wie "Remix" oder "Edit" vergeben.
+`find_song_url` führt eine mehrstufige Suche aus:
+
+1. **Variationen:** `generate_variations` erzeugt diverse Suchstrings (z. B.
+   mit/ohne Features, Reihenfolge umgedreht).
+2. **Artist-First:** Zuerst Genius-Suche → versucht den Künstler über
+   `mini-artist-card` zu identifizieren → dann den Song in dessen Liste.
+3. **Scoring:** Jedes Ergebnis wird gegen den `target_string` (Titel + Artists)
+   geprüft (`calculate_validation_score`). Ein Bonus wird für
+   Übereinstimmungen bei Künstlernamen (`+0.2` pro Match) und für Begriffe wie
+   "Remix" oder "Edit" (`+0.1`) vergeben.
+4. **Threshold:** Nur Ergebnisse über `MATCH_THRESHOLD` (Default `0.8`)
+   werden akzeptiert.
 
 ## Scroll-Trick für Lyrics
 
-Genius lädt Lyrics lazy nach. `load_song_page` scrollt schrittweise:
+Genius lädt Lyrics-Container lazy. `load_song_page` scrollt schrittweise:
 
 ```python
-driver.execute_script("window.scrollTo(0, document.body.scrollHeight/2);")
-time.sleep(PAGE_LOAD_SLEEP)
-driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+page.evaluate("window.scrollTo(0, document.body.scrollHeight/2);")
+page.wait_for_timeout(PAGE_LOAD_SLEEP * 1000)
+page.evaluate("window.scrollTo(0, document.body.scrollHeight);")
 ```
 
-## Extraction-Details (Lyrics)
+Danach Wartebedingung auf `[data-lyrics-container='true']`.
 
-Der Extraktor in `scraper/extractor.py` konzentriert sich aktuell ausschließlich auf die Lyrics:
+## Extraktions-Details (Lyrics)
 
-```python
-lyrics_containers = soup.find_all("div", {"data-lyrics-container": "true"})
-```
+Pro Container in `[data-lyrics-container='true']`:
 
-Pro Container:
 1. `[data-exclude-from-selection='true']`-Divs entfernen (Annotation-Trigger).
 2. `<br>` → `\n`.
 3. Zeilen splitten und bereinigen.
-4. Sections anhand von Metadaten in eckigen Klammern (z.B. `[Verse 1]`, `[Chorus]`) gruppieren.
+4. Sections anhand von Metadaten in eckigen Klammern (`[Verse 1]`,
+   `[Chorus]`, …) gruppieren.
 
 ## Output-Schema
 
 ```json
 {
   "lyrics": [
-    {
-      "section": "[Verse 1]",
-      "lines": ["...", "..."]
-    }
+    {"section": "[Verse 1]", "lines": ["..."]},
+    {"section": "[Chorus]", "lines": ["..."]}
   ],
-  "url": "https://genius.com/..."
+  "url": "https://genius.com/...",
+  "album_tracklist": [
+    {"number": "1", "title": "...", "link": "https://genius.com/..."}
+  ],
+  "credits": {
+    "producers": ["..."],
+    "writers": ["..."]
+  }
 }
 ```
 
-> **Hinweis:** Frühere Versionen der Dokumentation enthielten Felder für Credits, Track-Infos und Album-Tracklists. Diese sind in der aktuellen Implementierung (`extractor.py`) zugunsten einer stabileren Lyrics-Extraktion vorerst entfernt worden.
+Wenn kein Treffer gefunden wird, gibt der Extraktor ein "Fallback"-Ergebnis
+zurück mit Lyrics `[{"section": "[Info]", "lines": ["Keine Lyrics Verfügbar"]}]`
+und `"url": None`.
+
+## Stealth-Flag
+
+Um Cloudflare-Challenges zu minimieren, läuft Chromium mit:
+
+```python
+args=["--disable-blink-features=AutomationControlled"]
+```
+
+Falls die Seite trotzdem blockiert: einmal sichtbar (nicht headless) starten,
+die Challenge manuell lösen — das Profil speichert das Cookie für künftige
+Headless-Läufe.

@@ -21,7 +21,7 @@ Diese Anleitung führt dich vom frischen Clone bis zum laufenden Watcher.
 
 ```powershell
 git clone <repo-url>
-cd .beatbase
+cd Beatbase
 ```
 
 ### 2. Abhängigkeiten installieren
@@ -33,17 +33,14 @@ uv sync
 `uv sync` liest `pyproject.toml` und `uv.lock`, legt automatisch das virtuelle
 Environment unter `.venv/` an und installiert alle Pakete deterministisch.
 
-### 3. Browser-Binary installieren
+### 3. Playwright-Browser installieren
 
-Playwright braucht eine eigene Chromium-Installation:
+Alle Browser-Extraktoren (Tunebat, Songstats, Genius, SongBPM) nutzen
+Playwright Chromium:
 
 ```powershell
 uv run playwright install chromium
 ```
-
-Selenium nutzt das systemweite Chrome — stelle sicher, dass Google Chrome
-installiert ist. Der passende `chromedriver` wird ab Selenium 4 automatisch
-verwaltet (Selenium Manager).
 
 ### 4. Spotify-Credentials
 
@@ -53,6 +50,9 @@ Lege eine Datei `.env` im Projektroot an:
 SPOTIPY_CLIENT_ID=dein_client_id
 SPOTIPY_CLIENT_SECRET=dein_client_secret
 SPOTIPY_REDIRECT_URI=http://localhost:8888/callback
+
+# Optional: alternativer DB-Pfad für update_audio_features
+# BEATBASE_DB_PATH=D:/eigener/pfad/spotify.db
 ```
 
 Beide IDs erhältst du im [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
@@ -69,46 +69,67 @@ Trage die `Redirect URI` zusätzlich dort unter *Edit Settings* ein.
 uv run python -m beatbase
 ```
 
-Beim ersten Songwechsel öffnen sich kurz zwei Browserfenster (Playwright für
-Songstats, Selenium für Genius) — beide haben **persistente Profile**
-(`songstats_profile/`, `genius_profile_selenium/`) und sind in `.gitignore`.
+Beim ersten Songwechsel öffnet sich **ein** Browser-Fenster (Playwright
+Chromium), das von allen vier Extraktoren (Tunebat → Songstats → Genius →
+SongBPM) der Reihe nach genutzt wird. Jeder Extraktor hat sein eigenes
+**persistentes Profil** unter `.profiles/`:
 
-> ⚠️ **Profilverzeichnisse nicht löschen.** Sie speichern Cookies und
-> Login-State, damit du keine Captchas mehr lösen musst.
+- `.profiles/tunebat_profile/`
+- `.profiles/songstats_profile/`
+- `.profiles/genius_profile_playwright/`
+
+Diese Verzeichnisse sind in `.gitignore`.
+
+> ⚠️ **Profilverzeichnisse nicht löschen.** Sie speichern Cookies, Login-State
+> und Anti-Bot-Reputation, damit du keine Captchas mehr lösen musst.
 
 ### Beispielausgabe
 
 ```
-🚀 Beatbase Orchestrator wird gestartet...
-👁️ Watcher aktiv. Polling-Intervall: 15s.
+🚀 Beatbase Orchestrator wird gestartet... (PID: 12345)
+👁️ Watcher aktiv. Polling-Intervall: 10s.
 🎵 Neuer Song: Blinding Lights von The Weeknd
 
+--- Tunebat ---
+🔗 Suche auf Tunebat: 'Blinding Lights The Weeknd'
+✅ Daten extrahiert.
+
 --- Songstats ---
-🔍 Songstats-Suche: Blinding Lights von The Weeknd
-  📊 Extrahierte Details:
-  Audio Features
-  -----------------------------------
-    -> Energy                    : 0.73
-    -> Danceability              : 0.51
-    ...
+🔗 Nutze direkten Link: https://songstats.com/...?source=overview
+📊 Extrahierte Details (Overview):
 
 --- Genius ---
-🔗 Suche nach: Blinding Lights The Weeknd
+🔗 Suche auf Genius: Blinding Lights von The Weeknd
 ✅ Vollständige Daten (inkl. Lyrics) extrahiert.
 
-📋 Zusammenfassung:
-  title: Blinding Lights
-  isrc: USUG11904206
-  release_date: 2019-11-29
-  genius_url: https://genius.com/...
+--- SongBPM ---
+🔗 Suche auf SongBPM: Blinding Lights The Weeknd
+
+ Zusammenfassung:
+{
+    "meta": {"title": "Blinding Lights", "artist": "The Weeknd", ...},
+    "music_theory": {"bpm": "171", "key": "F# minor", ...},
+    ...
+}
+💾 Archiviert: data/json/abc123.json
 ```
 
 ### Watcher beenden
 
-`Ctrl+C` — der Loop fängt `KeyboardInterrupt` und beendet sauber.
+Drei Wege:
+
+1. `Ctrl+C` im Watcher-Terminal — `KeyboardInterrupt` wird sauber gefangen.
+2. Aus einem anderen Terminal:
+
+   ```powershell
+   uv run python -m beatbase --stop
+   ```
+
+   Liest die PID aus `.beatbase.pid` und schickt `SIGTERM`.
+3. Notfall: Prozess via Task-Manager beenden und `.beatbase.pid` manuell löschen.
 
 ## Nächste Schritte
 
 - [CLI-Referenz](cli.md) — Extraktoren einzeln aufrufen
-- [Konfiguration](configuration.md) — Polling-Intervall, IPC-Mode anpassen
+- [Konfiguration](configuration.md) — Polling-Intervall, IPC-Mode, ENABLE-Toggles
 - [Architektur](architecture.md) — Wie alles zusammenspielt

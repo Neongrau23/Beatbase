@@ -35,37 +35,72 @@ Bekannte Fehlerbilder und Lösungen.
 - Wenn das nichts liefert: `is_playing` ist `false` (z. B. pausierter Track)
   oder kein Token.
 
-## Songstats
+## Watcher
 
-### Captcha-Schleife / Cloudflare-Challenge
+### `⚠️ PID-Datei existiert bereits!`
 
-- Beim allerersten Start einmalig **mit sichtbarem Browser** laufen lassen,
-  damit du die Challenge manuell lösen kannst:
+- Eine laufende Beatbase-Instanz ist bereits aktiv (PID in `.beatbase.pid`).
+- Beenden via `uv run python -m beatbase --stop` oder Task-Manager.
+- Wenn die PID-Datei verwaist ist (Prozess existiert nicht mehr): `.beatbase.pid`
+  manuell löschen.
+
+### `⚠️ Fehler im Watcher-Loop: <Exception>`
+
+- Eine Exception ist außerhalb der Extraktor-Try-Blöcke geflogen
+  (meist Spotify-API).
+- Watcher läuft weiter und versucht es im nächsten Intervall erneut.
+
+### Browser-Fenster bleibt offen nach `--stop`
+
+- `SIGTERM` schließt den Python-Prozess; Playwright/Chromium-Kindprozesse
+  sollten mit beendet werden. Wenn nicht: Task-Manager → `chrome.exe`
+  manuell beenden.
+
+## Tunebat
+
+### Cloudflare-Challenge blockiert Headless
+
+- Skript einmalig mit sichtbarem Browser laufen lassen und die Challenge
+  manuell lösen:
   ```powershell
-  uv run python -m beatbase.songstats.songstats --song "X" --artist "Y"
-  # Ohne --headless!
+  uv run python -m beatbase.tunebat.tunebat --no-headless --dev `
+    --song "X" --artist "Y"
   ```
-- Cookies landen in `songstats_profile/`. Folgeaufrufe sind dann auch
-  headless möglich.
+- Cookies landen in `.profiles/tunebat_profile/`. Folgeaufrufe sind dann
+  auch headless möglich.
+- Alternative: das Profil-Warmup-Skript:
+  ```powershell
+  uv run python -m beatbase.tunebat.browser.warm_profile
+  ```
+  Browst sichtbar Google, YouTube, Tunebat mit menschlicher
+  Scroll-/Klick-Aktivität.
+
+### `⚠️ Kein passender Treffer auf Tunebat gefunden`
+
+- Die Top-5-Variationen haben keinen Treffer über `MATCH_THRESHOLD = 0.8`
+  erbracht.
+- Optionen:
+  - Threshold in `tunebat/config.py` senken.
+  - Variations-Logik in `utils/search_variations.py` erweitern.
+
+## Songstats
 
 ### `❌ Kein Treffer.`
 
-- Die `MATCH_THRESHOLD` von 0.8 hat keinen Treffer überschritten.
+- Die `MATCH_THRESHOLD` von `0.7` hat keinen Treffer überschritten.
 - Möglichkeiten:
-  - Threshold in `src/beatbase/songstats/config.py` senken (`0.7`).
+  - Threshold in `src/beatbase/songstats/config.py` senken.
   - Variationen in `utils/search_variations.py` ergänzen.
-  - Aggressivere Permutations-Variante inline ergänzen (siehe Hinweis in
-    [`modules/songstats.md`](modules/songstats.md)).
+  - Wenn Tunebat aktiv ist und einen `songstats_url` liefert, überspringt
+    Songstats die eigene Suche — prüfe, ob Tunebat überhaupt einen Treffer
+    hatte.
 
-### Audio-Features alle 0.0
+### Audio-Features fehlen im Master-Summary
 
-- Der Highcharts-Tooltip wurde nicht angezeigt. Häufige Ursachen:
-  - Headless-Modus: Maus-Events landen ggf. nicht. Mit sichtbarem Browser
-    testen.
-  - Sleep-Pause zu kurz. In `scraper/metrics.py` die
-    `page.wait_for_timeout(250)` erhöhen.
-  - Songstats hat das SVG umgebaut. Selektor
-    `svg.highcharts-root:has(g.highcharts-xaxis-labels)` prüfen.
+- Aktuell liefert Songstats **keine** Audio-Features mehr (Highcharts-Trick
+  wurde entfernt). Audio-Features kommen aus **Tunebat**.
+- Wenn Tunebat im Pipeline-Lauf gescheitert ist, sind die Audio-Features im
+  Master-Summary `None`.
 
 ### Playwright Browser nicht gefunden
 
@@ -77,47 +112,29 @@ Executable doesn't exist at ...\ms-playwright\chromium-...\chrome.exe
 
 ## Genius
 
-### Selenium / Chrome-Version-Mismatch
-
-- Ab Selenium 4 verwaltet Selenium Manager den `chromedriver` automatisch.
-  Falls trotzdem ein Mismatch: Chrome aktualisieren.
-
 ### `❌ Kein Song gefunden.`
 
-- Der erste Treffer auf der Genius-Suchergebnis-Seite war kein
-  `-lyrics`-Link.
+- Genius hat keinen Treffer auf Suchergebnis-Seite oder über das
+  Künstler-Profil gefunden.
 - Häufige Ursachen:
   - Tippfehler im Suchbegriff.
   - Sehr neue / sehr obskure Songs ohne Genius-Seite.
-- Aktuell gibt es **keinen** Variations-Fallback (anders als bei Songstats).
-  Bei häufigen Misses: Variation-Schleife in `genius/browser/navigator.py`
-  ergänzen.
+- Falls Cloudflare oder Captcha: einmalig **sichtbar** starten
+  (`--no-headless`), Challenge manuell lösen — Profil speichert das Cookie.
 
 ### Lyrics unvollständig
 
-- Genius lädt Lyrics-Container lazy. `load_song_page` scrollt zweimal —
-  bei sehr langen Songs könnte ein dritter Scroll helfen
-  (`scrollHeight * 0.75`).
+- Genius lädt Lyrics-Container lazy. `load_song_page` scrollt zweimal — bei
+  sehr langen Songs könnte ein dritter Scroll helfen (`scrollHeight * 0.75`).
 
-## Watcher
+## SongBPM
 
-### `⚠️ Fehler im Watcher-Loop: <Exception>`
+### Keine Vibe-Beschreibung im Master-Summary
 
-- Eine Exception ist außerhalb der Extraktor-Try-Blöcke geflogen
-  (meist Spotify-API).
-- Watcher läuft weiter und versucht es im nächsten Intervall erneut.
-
-### Beide Browser öffnen sich gleichzeitig und kollidieren
-
-- Sollte nicht passieren — sie laufen sequenziell (`_run_songstats` →
-  `_run_genius`). Wenn doch: stelle sicher, dass nur **eine** Watcher-
-  Instanz läuft. Check via Task-Manager (mehrere `python.exe`-Prozesse).
-
-### Hoher CPU-Verbrauch im Idle
-
-- Die Browser-Profile bleiben zwischen Songs **geschlossen** — wenn du
-  Dauer-CPU siehst, ist möglicherweise Spotify (`is_playing`-Loop) der
-  Verursacher, nicht Beatbase.
+- SongBPM ist optional via `ENABLE_SONGBPM`. Prüfen, ob aktiv.
+- Cookie-Banner blockiert? Das zentrale `wait_for_and_dismiss_cookies`
+  sollte das handhaben — bei Layout-Änderungen in `utils/cookie_manager.py`
+  neuen Selector ergänzen.
 
 ## IPC
 
@@ -133,14 +150,16 @@ Executable doesn't exist at ...\ms-playwright\chromium-...\chrome.exe
 
 - `core/config.py::IPC_MODE` ist nur `"file"` oder `"env"` erlaubt.
 
-## Datenbank
+## Datenbank (`--track-id`)
 
 ### `sqlite3.OperationalError: unable to open database file`
 
-- `C:/workspace/beatbase/spotify.db` existiert nicht oder das übergeordnete
-  Verzeichnis fehlt.
-- Diese DB gehört nicht zu Beatbase, sondern zu einem übergeordneten System.
-  Wenn du `--track-id` nicht nutzt, kannst du den Aufruf ignorieren.
+- Der Pfad in `BEATBASE_DB_PATH` zeigt auf eine Datei, die nicht existiert,
+  oder das übergeordnete Verzeichnis fehlt.
+- Default ist `C:/workspace/beatbase/spotify.db`. Diese DB gehört nicht zu
+  Beatbase, sondern zu einem übergeordneten System. Wenn du `--track-id`
+  nicht nutzt, kannst du den Aufruf ignorieren.
+- Eigenen Pfad setzen: `$env:BEATBASE_DB_PATH = "D:/foo/spotify.db"`.
 
 ### `sqlite3.OperationalError: no such table: tracks`
 
@@ -157,7 +176,8 @@ Executable doesn't exist at ...\ms-playwright\chromium-...\chrome.exe
 
 ### Profil löschen?
 
-- **Nicht.** `songstats_profile/` und `genius_profile_selenium/` speichern
-  Cookies und Captcha-Bypass. Wegwerfen heißt: alle Captchas wieder lösen.
-- Wenn doch nötig (z. B. korruptes Profil): Verzeichnis löschen, mit
-  sichtbarem Browser starten, einmal manuell durch klicken.
+- **Nicht.** Die Verzeichnisse unter `.profiles/` speichern Cookies und
+  Captcha-Bypass-State. Wegwerfen heißt: alle Captchas wieder lösen, evtl.
+  neue Bot-Detection-Stufe.
+- Wenn doch nötig (z. B. korruptes Profil): das spezifische Verzeichnis
+  löschen, mit sichtbarem Browser starten, einmal manuell durchklicken.
