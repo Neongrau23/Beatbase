@@ -155,10 +155,7 @@ cython_debug/
 .idea/
 
 # Browser Profiles
-songstats_profile/
-genius_profile/
-genius_profile_selenium/
-.songstats_browser_profile/
+.profiles/
 
 now_playing.txt
 now_playing.txt.tmp
@@ -169,10 +166,8 @@ now_playing.txt.tmp
 .claude/
 .ruff_cache/
 .obsidian/
-.profiles/
 data/
 .sandbox/
-.profiles/
 .ini
 desktop.ini
 search/
