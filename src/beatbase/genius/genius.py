@@ -25,30 +25,47 @@ def search_on_genius(song: str, artists: list[str], headless: bool = HEADLESS) -
 
     Koordiniert Browser-Kontext, Navigation und Extraktion über Playwright.
     """
-    # Versteckte Künstler aus dem Titel extrahieren und zur Liste hinzufügen
+    # Im Titel versteckte Feature-Künstler (z. B. "ft. XY") extrahieren
     featured = extract_featured_artists(song)
+
+    # Gefundene Feature-Künstler zur Künstlerliste hinzufügen, sofern noch nicht vorhanden
     for artist in featured:
         if not any(artist.lower() in existing.lower() for existing in artists):
             artists.append(artist)
 
+    # Ziel-String für den späteren Treffervergleich normalisieren
     target_string = f"{song} {', '.join(artists)}".lower()
+
+    # Verschiedene Suchanfragen generieren (z. B. mit/ohne Featured-Künstler)
     queries = generate_variations(song, artists)
 
     with sync_playwright() as p:
+        # Browser-Kontext starten (mit oder ohne sichtbarem Fenster)
         context = create_playwright_context(p, headless=headless)
+
+        # Vorhandene Seite wiederverwenden oder neue öffnen
         page = context.pages[0] if context.pages else context.new_page()
 
         try:
             log_status(f"🔗 Suche auf Genius: {song} von {', '.join(artists)}")
+
+            # Genius durchsuchen und die URL des passenden Songs ermitteln
             song_url = find_song_url(page, queries, target_string, artists)
 
+            # Abbruch, wenn kein passender Treffer gefunden wurde
             if not song_url:
                 log_status("❌ Kein Song gefunden.")
                 return {"lyrics": [{"section": "[Info]", "lines": ["Keine Lyrics Verfügbar"]}], "url": None}
 
             log_status(f"🔗 Öffne Song: {song_url}")
+
+            # Song-Seite laden und als BeautifulSoup-Objekt parsen
             soup = load_song_page(page, song_url)
+
+            # Lyrics und Metadaten aus dem geparsten HTML extrahieren
             ergebnis_json = extrahiere_song_details_json(soup)
+
+            # Quell-URL zum Ergebnis hinzufügen
             ergebnis_json["url"] = song_url
 
             log_status("✅ Vollständige Daten (inkl. Lyrics) extrahiert.")
@@ -56,9 +73,12 @@ def search_on_genius(song: str, artists: list[str], headless: bool = HEADLESS) -
             return ergebnis_json
 
         except Exception as e:
+            # Unerwartete Fehler abfangen und None zurückgeben
             log_status(f"❌ Fehler bei der Verarbeitung: {e}")
             return None
+
         finally:
+            # Browser-Kontext in jedem Fall schließen (auch bei Fehlern)
             context.close()
 
 
