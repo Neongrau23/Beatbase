@@ -1,5 +1,7 @@
 # CONFIG: Zentrale Watcher- und IPC-Konfiguration
 
+import os
+
 # IPC-Modus: "file" schreibt/liest now_playing.txt, "env" nutzt die Windows-User-Env NOW_PLAY.
 IPC_MODE = "file"
 
@@ -32,3 +34,7 @@ SONGBPM_URL = "https://songbpm.com/"
 GENIUS_URL = "https://genius.com/"
 TUNEBAT_URL = "https://tunebat.com/"
 SONGSTATS_URL = "https://songstats.com/"
+
+# Externe Beatbase-SQLite-DB für update_audio_features (core/db.py).
+# Default ist der bisherige Pfad; über die Env-Var BEATBASE_DB_PATH überschreibbar.
+BEATBASE_DB_PATH = os.getenv("BEATBASE_DB_PATH", "C:/workspace/beatbase/spotify.db")

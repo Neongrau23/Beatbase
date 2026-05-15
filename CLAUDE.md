@@ -37,7 +37,7 @@ uv run ruff check . --fix
 
 Es gibt aktuell **keine Test-Suite** (`tests/` ist leer). Wenn du Tests hinzufügst, spiegle die `src/`-Struktur.
 
-`--track-id` bei Songstats schreibt Audio-Features via `core/db.py::update_audio_features` direkt in eine **externe** SQLite-DB unter `C:/workspace/beatbase/spotify.db` (gehört zu einem übergeordneten System, nicht zum Repo).
+`--track-id` bei Songstats schreibt Audio-Features via `core/db.py::update_audio_features` direkt in eine **externe** SQLite-DB. Pfad steht in `BEATBASE_DB_PATH` (Default `C:/workspace/beatbase/spotify.db`, via Env-Var überschreibbar). Die DB gehört zu einem übergeordneten System, nicht zum Repo.
 
 ## Architektur
 
@@ -109,4 +109,4 @@ Jeder Browser-Extraktor folgt dem Submodul-Pattern:
 - `.env` im Projektroot: `SPOTIPY_CLIENT_ID`, `SPOTIPY_CLIENT_SECRET`, optional `SPOTIPY_REDIRECT_URI`.
 - `src/beatbase/core/config.py`: Watcher- und IPC-Defaults (`POLLING_INTERVAL`, `IPC_MODE`, `WATCHER_HEADLESS`, `SENTINEL_NONE`, `ENABLE_*`-Toggles, `JSON_EXPORT_DIR`, Quellen-URLs).
 - `src/beatbase/{songstats,genius,tunebat}/config.py`: Quellen-spezifische Konstanten (`MATCH_THRESHOLD`, `PROFILE_DIR`, `USER_AGENT`, Timeouts, Headless-Default).
-- `src/beatbase/core/db.py::DB_PATH` → `C:/workspace/beatbase/spotify.db` (externe DB, nur für `--track-id`-Workflow relevant).
+- `BEATBASE_DB_PATH` (Env-Var oder `core/config.py`-Default) → externer SQLite-Pfad für den `--track-id`-Workflow. Default `C:/workspace/beatbase/spotify.db`.

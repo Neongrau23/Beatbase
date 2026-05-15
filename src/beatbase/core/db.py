@@ -1,7 +1,6 @@
 import sqlite3
 
-# CONFIG: Pfad zur Beatbase-Datenbank
-DB_PATH = "C:/workspace/beatbase/spotify.db"
+from beatbase.core.config import BEATBASE_DB_PATH
 
 
 # DEF: update_audio_features(track_id, features) -> None
@@ -15,7 +14,7 @@ def update_audio_features(track_id: str, features: dict) -> None:
     Raises:
         sqlite3.Error: Bei Datenbankfehlern.
     """
-    with sqlite3.connect(DB_PATH) as conn:
+    with sqlite3.connect(BEATBASE_DB_PATH) as conn:
         conn.execute(
             """UPDATE tracks
                SET danceability=?, acousticness=?, energy=?, instrumentalness=?,
