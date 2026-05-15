@@ -1,6 +1,6 @@
 # 🎵 Beatbase
 
-**Musik-Metadaten Aggregator** — Die Brücke zwischen Spotify, Songstats und Genius.
+**Musik-Metadaten Aggregator** — Die Brücke zwischen Spotify, Tunebat, Songstats, Genius und SongBPM.
 
 Beatbase erkennt automatisch den aktuell spielenden Track auf Spotify und sammelt parallel tiefgreifende Metadaten, Audio-Features, Lyrics und Credits. Es kombiniert offizielle API-Daten mit mächtigen Browser-Scrapern für eine vollständige musikalische Analyse.
 
@@ -11,14 +11,13 @@ Beatbase erkennt automatisch den aktuell spielenden Track auf Spotify und sammel
 ### 1. Voraussetzungen
 - **Python** ≥ 3.11
 - **Paketmanager:** [`uv`](https://github.com/astral-sh/uv)
-- **Browser:** Google Chrome (für Selenium/Genius)
 
 ### 2. Installation
 ```powershell
 # Abhängigkeiten installieren
 uv sync
 
-# Playwright Browser (für Songstats) installieren
+# Playwright Chromium (für alle Browser-Extraktoren) installieren
 uv run playwright install chromium
 ```
 
@@ -38,13 +37,14 @@ uv run python -m beatbase
 
 ## 🏗️ Funktionsweise & Architektur
 
-Beatbase nutzt einen zentralen **Watcher**, der Spotify pollt. Bei einem Songwechsel werden die Extraktoren getriggert:
+Beatbase nutzt einen zentralen **Watcher**, der Spotify pollt. Bei einem Songwechsel triggert er die deklarative Extraktor-Pipeline (Tunebat → Songstats → Genius → SongBPM) in einem geteilten Browser-Kontext:
 
 ```
 Spotify API ─┐
-             ├─► Hotline (bus) ──► Callcenter ──► Strukturierte Song-Daten
-Songstats ───┤
-Genius ──────┘
+Tunebat ─────┤
+Songstats ───┼─► Hotline (bus) ──► Callcenter ──► Strukturierte Song-Daten
+Genius ──────┤
+SongBPM ─────┘
 ```
 
 - 🛰️ **Hotline:** Ein schema-freier Datenbus, der Rohdaten aller Quellen sammelt.
@@ -69,8 +69,9 @@ Hier findest du alle Details zur Nutzung und Erweiterung von Beatbase:
 
 ### 🧩 Module
 - 🟢 **[Spotify](docs/modules/spotify.md)** — API-Extraktion.
-- 📊 **[Songstats](docs/modules/songstats.md)** — Highcharts-Scraping & Audio-Features.
-- 📝 **[Genius](docs/modules/genius.md)** — Lyrics & Credits via Selenium.
+- 🎚️ **[Tunebat](docs/modules/tunebat.md)** — BPM, Key, Audio-Features via Playwright + Stealth.
+- 📊 **[Songstats](docs/modules/songstats.md)** — Overview-Daten (Genres, ISRCs, Labels).
+- 📝 **[Genius](docs/modules/genius.md)** — Lyrics & Credits via Playwright + BeautifulSoup.
 - 👁️ **[Watcher](docs/modules/watcher.md)** — Der Orchestrator-Loop.
 
 ---
