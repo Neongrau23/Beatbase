@@ -12,35 +12,33 @@ from playwright.sync_api import sync_playwright
 
 from beatbase.core.config import SENTINEL_NONE, SONGBPM_URL
 from beatbase.songbpm.scraper.extractor import extract_song_info
+from beatbase.songbpm.scraper.extractor import extract_song_info
+from beatbase.utils.cookie_manager import wait_for_and_dismiss_cookies
 from beatbase.utils.log import log_status
-from beatbase.utils.now_playing import read_now_playing_data
 
 
 # DEF: search_on_songbpm(query, headless) -> dict | None
-def search_on_songbpm(song: str, artists: list[str], headless: bool = True) -> dict | None:
+def search_on_songbpm(song: str, artists: list[str], headless: bool = True, page=None) -> dict | None:
     """Führt eine Suche auf SongBPM aus und extrahiert die Details des besten Treffers."""
     search_query = f"{song} {', '.join(artists)}"
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=headless)  # ✅ Erst Browser starten
-        page = browser.new_page()  # ✅ Dann Page erstellen
+    def _do_search(active_page):
         try:
             log_status(f"🔗 Suche auf SongBPM: {search_query}")
-            page.goto(SONGBPM_URL)  # ✅ Erst navigieren
+            active_page.goto(SONGBPM_URL)  # ✅ Erst navigieren
 
-            # ✅ Cookie-Dialog erst nach dem Laden prüfen
-            dialog = page.get_by_role("dialog", name="Zustimmung zu Cookies &")
-            if dialog.is_visible():
-                page.get_by_role("button", name="Alle akzeptieren").click()
+            # Zentrales Cookie-Management nutzen
+            wait_for_and_dismiss_cookies(active_page)
 
             # Suche ausführen
             search_selector = 'input[type="text"]'
-            page.fill(search_selector, search_query)
-            page.keyboard.press("Enter")
+            active_page.fill(search_selector, search_query)
+            active_page.keyboard.press("Enter")
 
-            page.wait_for_url("**/searches/**", timeout=15000)
 
-            soup = BeautifulSoup(page.content(), "html.parser")
+            active_page.wait_for_url("**/searches/**", timeout=15000)
+
+            soup = BeautifulSoup(active_page.content(), "html.parser")
             song_links = []
             for a_tag in soup.find_all("a", href=True):
                 href = a_tag["href"]
@@ -57,8 +55,16 @@ def search_on_songbpm(song: str, artists: list[str], headless: bool = True) -> d
             log_status(f"❌ Fehler bei der SongBPM-Suche: {e}")
             return None
 
-        finally:
-            browser.close()  # ✅ Wird immer ausgeführt, auch bei Exception
+    if page:
+        return _do_search(page)
+    else:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=headless)  # ✅ Erst Browser starten
+            new_page = browser.new_page()  # ✅ Dann Page erstellen
+            try:
+                return _do_search(new_page)
+            finally:
+                browser.close()  # ✅ Wird immer ausgeführt, auch bei Exception
 
 
 # DEF: main()

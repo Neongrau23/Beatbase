@@ -9,6 +9,7 @@ from playwright.sync_api import Page
 from beatbase.core.config import GENIUS_URL
 from beatbase.genius.config import MATCH_THRESHOLD, PAGE_LOAD_SLEEP
 from beatbase.genius.validator import calculate_validation_score
+from beatbase.utils.cookie_manager import wait_for_and_dismiss_cookies
 from beatbase.utils.log import log_status
 
 
@@ -37,12 +38,8 @@ def find_song_url(page: Page, queries: list[str], target_string: str, artists: l
         # STEP 1: Suche nach dem Künstler
         page.goto(GENIUS_URL)
 
-        try:
-            accept_btn = page.get_by_role("button", name="Akzeptieren")
-            if accept_btn.is_visible(timeout=2000):
-                accept_btn.click()
-        except Exception:
-            pass
+        # Zentrales Cookie-Management nutzen
+        wait_for_and_dismiss_cookies(page)
 
         search_box = page.get_by_role("textbox", name="Search lyrics & more")
         search_box.click()

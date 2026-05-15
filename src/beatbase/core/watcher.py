@@ -8,6 +8,8 @@ Pollt Spotify in Intervallen, schreibt den aktuellen Song in den IPC-Layer
 import os
 import time
 
+from playwright.sync_api import sync_playwright
+
 from beatbase.core.config import (
     ENABLE_GENIUS,
     ENABLE_SONGBPM,
@@ -60,13 +62,15 @@ def _push_spotify(track: dict) -> None:
 
 
 # DEF: Songstats-Schritt mit Fehler-Isolation
-def _run_songstats(track: dict, headless: bool = WATCHER_HEADLESS) -> None:
+def _run_songstats(track: dict, headless: bool = WATCHER_HEADLESS, page=None, direct_url: str | None = None) -> None:
     log_status("\n--- Songstats ---")
     try:
         result = search_on_songstats(
             track.get("song"),
             list(track.get("artists", [])),
             headless=headless,
+            page=page,
+            direct_url=direct_url,
         )
         if result:
             for k, v in result.items():
@@ -76,13 +80,14 @@ def _run_songstats(track: dict, headless: bool = WATCHER_HEADLESS) -> None:
 
 
 # DEF: Genius-Schritt mit Fehler-Isolation
-def _run_genius(track: dict, headless: bool = WATCHER_HEADLESS) -> None:
+def _run_genius(track: dict, headless: bool = WATCHER_HEADLESS, page=None) -> None:
     log_status("\n--- Genius ---")
     try:
         result = search_on_genius(
             track.get("song"),
             list(track.get("artists", [])),
             headless=headless,
+            page=page,
         )
         if result:
             bus.set("genius", "data", result)
@@ -94,13 +99,14 @@ def _run_genius(track: dict, headless: bool = WATCHER_HEADLESS) -> None:
 
 
 # DEF: Tunebat-Schritt mit Fehler-Isolation
-def _run_tunebat(track: dict, headless: bool = WATCHER_HEADLESS) -> None:
+def _run_tunebat(track: dict, headless: bool = WATCHER_HEADLESS, page=None) -> None:
     log_status("\n--- Tunebat ---")
     try:
         result = search_on_tunebat(
             track.get("song"),
             list(track.get("artists", [])),
             headless=headless,
+            page=page,
         )
         if result:
             for k, v in result.items():
@@ -110,13 +116,14 @@ def _run_tunebat(track: dict, headless: bool = WATCHER_HEADLESS) -> None:
 
 
 # DEF: SongBPM-Schritt mit Fehler-Isolation
-def _run_songbpm(track: dict, headless: bool = WATCHER_HEADLESS) -> None:
+def _run_songbpm(track: dict, headless: bool = WATCHER_HEADLESS, page=None) -> None:
     log_status("\n--- SongBPM ---")
     try:
         result = search_on_songbpm(
             track.get("song"),
             list(track.get("artists", [])),
             headless=headless,
+            page=page,
         )
         if result:
             bus.set("songbpm", "data", result)
@@ -134,14 +141,25 @@ def _handle_new_track(track: dict, headless: bool = WATCHER_HEADLESS) -> None:
     _push_spotify(track)
     log_status(f"🎵 Neuer Song: {track.get('song')} von {', '.join(track.get('artists', []))}")
 
-    if ENABLE_SONGSTATS:
-        _run_songstats(track, headless=headless)
-    if ENABLE_GENIUS:
-        _run_genius(track, headless=headless)
-    if ENABLE_TUNEBAT:
-        _run_tunebat(track, headless=headless)
-    if ENABLE_SONGBPM:
-        _run_songbpm(track, headless=headless)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=headless)
+        context = browser.new_context()
+        page = context.new_page()
+
+        try:
+            if ENABLE_TUNEBAT:
+                _run_tunebat(track, headless=headless, page=page)
+            if ENABLE_SONGSTATS:
+                # Prüfen, ob Tunebat einen direkten Link gefunden hat
+                direct_url = bus.get("tunebat", "songstats_url")
+                _run_songstats(track, headless=headless, page=page, direct_url=direct_url)
+            if ENABLE_GENIUS:
+                _run_genius(track, headless=headless, page=page)
+            if ENABLE_SONGBPM:
+                _run_songbpm(track, headless=headless, page=page)
+        finally:
+            context.close()
+            browser.close()
 
     summary_json = get_summary_json()
     log_status(" Zusammenfassung:")

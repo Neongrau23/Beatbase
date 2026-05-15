@@ -2,12 +2,13 @@ from bs4 import BeautifulSoup
 
 from beatbase.songstats.browser.navigator import find_song_profile
 from beatbase.songstats.scraper.overview import _extract_overview
+from beatbase.utils.cookie_manager import wait_for_and_dismiss_cookies
 from beatbase.utils.log import log_status
 from beatbase.utils.search_variations import extract_featured_artists, generate_variations
 
 
-# DEF: run_songstats_extraction(page, target_song, target_artists) -> dict
-def run_songstats_extraction(page, target_song: str, target_artists: list[str]) -> dict:
+# DEF: run_songstats_extraction(page, target_song, target_artists, direct_url) -> dict
+def run_songstats_extraction(page, target_song: str, target_artists: list[str], direct_url: str | None = None) -> dict:
     """Hauptkoordinator für die Datenbeschaffung eines Songs.
 
     Fokus: NUR Overview-Sektion. Keine Unterseiten (Spotify/Shazam), keine Hover-Metriken.
@@ -23,9 +24,24 @@ def run_songstats_extraction(page, target_song: str, target_artists: list[str]) 
     queries = generate_variations(target_song, target_artists)
     final_data = {}
 
-    if find_song_profile(page, queries, target_string, target_artists):
+    found = False
+    if direct_url:
+        log_status(f"🔗 Nutze direkten Link: {direct_url}")
+        try:
+            page.goto(direct_url, wait_until="networkidle")
+            found = True
+        except Exception as e:
+            log_status(f"⚠️ Direkter Link fehlgeschlagen: {e}")
+            found = find_song_profile(page, queries, target_string, target_artists)
+    else:
+        found = find_song_profile(page, queries, target_string, target_artists)
+
+    if found:
         try:
             page.wait_for_load_state("networkidle")
+
+            # Zentrales Cookie-Management nutzen (falls Profil direkt aufgerufen wurde)
+            wait_for_and_dismiss_cookies(page)
 
             # Stelle sicher, dass wir auf der 'Overview'-Ansicht sind
             # Wir verzichten auf teure Mouse-Hovers und Unterseiten-Klicks.

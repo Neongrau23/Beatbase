@@ -3,6 +3,7 @@ import time
 from beatbase.core.config import SONGSTATS_URL
 from beatbase.songstats.config import MATCH_THRESHOLD
 from beatbase.songstats.validator import calculate_validation_score
+from beatbase.utils.cookie_manager import wait_for_and_dismiss_cookies
 from beatbase.utils.log import log_status
 
 
@@ -23,6 +24,10 @@ def find_song_profile(page, queries: list[str], target_string: str, artists: lis
         log_status(f"  -> Versuche: '{query}'")
         try:
             page.goto(SONGSTATS_URL, wait_until="domcontentloaded")
+
+            # Zentrales Cookie-Management nutzen
+            wait_for_and_dismiss_cookies(page)
+
             search_box = page.wait_for_selector('input[type="text"]', timeout=5000)
             search_box.fill(query)
             page.keyboard.press("Enter")

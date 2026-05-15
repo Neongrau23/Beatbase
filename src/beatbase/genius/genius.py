@@ -74,25 +74,28 @@ def _execute_genius_search(page, song: str, artists: list[str], queries: list[st
 
 
 # DEF: Genius Suche (Orchestrator)
-def search_on_genius(song: str, artists: list[str], headless: bool = HEADLESS) -> dict | None:
+def search_on_genius(song: str, artists: list[str], headless: bool = HEADLESS, page=None) -> dict | None:
     """SECTION: ORCHESTRATION - Sucht auf Genius und gibt extrahierte Song-Details zurück.
 
     Koordiniert Browser-Kontext, Navigation und Extraktion über Playwright.
     """
     artists, target_string, queries = _prepare_search_data(song, artists)
 
-    with sync_playwright() as p:
-        # Browser-Kontext starten (mit oder ohne sichtbarem Fenster)
-        context = create_playwright_context(p, headless=headless)
+    if page:
+        return _execute_genius_search(page, song, artists, queries, target_string)
+    else:
+        with sync_playwright() as p:
+            # Browser-Kontext starten (mit oder ohne sichtbarem Fenster)
+            context = create_playwright_context(p, headless=headless)
 
-        # Vorhandene Seite wiederverwenden oder neue öffnen
-        page = context.pages[0] if context.pages else context.new_page()
+            # Vorhandene Seite wiederverwenden oder neue öffnen
+            new_page = context.pages[0] if context.pages else context.new_page()
 
-        try:
-            return _execute_genius_search(page, song, artists, queries, target_string)
-        finally:
-            # Browser-Kontext in jedem Fall schließen (auch bei Fehlern)
-            context.close()
+            try:
+                return _execute_genius_search(new_page, song, artists, queries, target_string)
+            finally:
+                # Browser-Kontext in jedem Fall schließen (auch bei Fehlern)
+                context.close()
 
 
 # DEF: Haupteinsprungpunkt

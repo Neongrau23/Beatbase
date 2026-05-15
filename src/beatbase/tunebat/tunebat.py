@@ -2,7 +2,9 @@
 
 import argparse
 import json
+import random
 import sys
+import time
 
 from playwright.sync_api import sync_playwright
 
@@ -10,147 +12,177 @@ from beatbase.core.config import SENTINEL_NONE, TUNEBAT_URL
 from beatbase.tunebat.browser.context import create_browser_context
 from beatbase.tunebat.browser.navigator import find_best_result
 from beatbase.tunebat.config import HEADLESS
+from beatbase.utils.cookie_manager import wait_for_and_dismiss_cookies
 from beatbase.utils.log import log_status
 from beatbase.utils.now_playing import read_now_playing_data
 from beatbase.utils.search_variations import extract_featured_artists, generate_variations
 
 
 # DEF: Tunebat Suche
-def search_on_tunebat(song: str, artists: list[str], headless: bool = HEADLESS, dev_mode: bool = False) -> dict | None:
+def search_on_tunebat(song: str, artists: list[str], headless: bool = HEADLESS, dev_mode: bool = False, page=None) -> dict | None:
     """Suche auf Tunebat mit Variations-Strategie."""
     actual_headless = False if dev_mode else headless
 
-    # Versteckte Künstler extrahieren
-    featured = extract_featured_artists(song)
-    for artist in featured:
-        if not any(artist.lower() in existing.lower() for existing in artists):
-            artists.append(artist)
+    if not artists:
+        # Kurz warten wie ein Mensch der überlegt
+        time.sleep(random.uniform(0.8, 1.4))
+
+        if page is not None:
+            log_status("⚠️ Keine Künstler – lade Seite neu...")
+            # Menschlich: F5 drücken statt API-Reload
+            page.keyboard.press("F5")
+            # Kurze Pause nach dem Reload wie ein Mensch der wartet
+            time.sleep(random.uniform(1.2, 2.1))
+
+            featured = extract_featured_artists(song)
+            for artist in featured:
+                if not any(artist.lower() in existing.lower() for existing in artists):
+                    artists.append(artist)
 
     target_string = f"{song} {' '.join(artists)}".lower()
     queries = generate_variations(song, artists)
 
-    with sync_playwright() as p:
-        context = create_browser_context(p, headless=actual_headless)
-        browser = context.browser
-        page = context.new_page()
+    def _do_search(active_page):
+        best_song_locator = None
 
+        for query in queries[:5]:  # Auf Tunebat reichen meist die Top 5 Variationen
+            log_status(f"🔗 Suche auf Tunebat: '{query}'")
+            active_page.goto(TUNEBAT_URL)
+
+            # Zentrales Cookie-Management nutzen
+            wait_for_and_dismiss_cookies(active_page)
+
+            # Suche ausführen (Gezielter Zugriff auf den oberen Suchbereich im Header)
+            search_input = active_page.locator(".ant-input-search input[aria-label='Song search field']").first
+            if not search_input.is_visible(timeout=5000):
+                # Fallback auf den mittleren Bereich, falls der Header-Bereich nicht da ist
+                search_input = active_page.get_by_role("main").get_by_role("textbox", name="Song search field")
+            
+            if not search_input.is_visible(timeout=5000):
+                continue
+
+            search_input.fill(query)
+            search_input.press("Enter")
+
+            # Resultat finden
+            best_song_locator = find_best_result(active_page, target_string, artists)
+            if best_song_locator:
+                break
+
+        if not best_song_locator:
+            log_status("⚠️ Kein passender Treffer auf Tunebat gefunden.")
+            return None
+
+        # Song-Seite laden per Klick (Bot-Detection Umgehung)
+        log_status("🖱️ Klicke auf bestes Suchergebnis...")
+        best_song_locator.click()
+        active_page.wait_for_selector(".yIPfN", timeout=10000)
+
+        # SECTION: Datenextraktion
+        log_status("🔍 Extrahiere Metriken...")
+        results = {}
+
+        # 1. Key, BPM, Duration
         try:
-            best_song_locator = None
+            metrics_containers = active_page.locator(".yIPfN")
+            for i in range(metrics_containers.count()):
+                container = metrics_containers.nth(i)
+                value = container.locator("h3").inner_text().strip()
+                label = container.locator("span.ant-typography-secondary").inner_text().strip().lower()
+                results[label] = value
+        except Exception:
+            pass
 
-            for query in queries[:5]:  # Auf Tunebat reichen meist die Top 5 Variationen
-                log_status(f"🔗 Suche auf Tunebat: '{query}'")
-                page.goto(TUNEBAT_URL)
+        # 2. Progress-Metriken (Popularity, Energy, etc.)
+        try:
+            progress_containers = active_page.locator("._1MCwQ")
+            for i in range(progress_containers.count()):
+                container = progress_containers.nth(i)
+                value_elem = container.locator(".ant-progress-text")
+                label_elem = container.locator("span.ant-typography").last
 
-                # Cookie Banner (nur beim ersten Mal relevant, aber persistent context sollte helfen)
-                try:
-                    accept_btn = page.get_by_role("button", name="Alle akzeptieren")
-                    if accept_btn.is_visible(timeout=2000):
-                        accept_btn.click()
-                except Exception:
-                    pass
+                if value_elem.count() > 0 and label_elem.count() > 0:
+                    val = value_elem.inner_text().strip()
+                    lab = label_elem.inner_text().strip().lower()
+                    results[lab] = val
+        except Exception:
+            pass
 
-                # Suche ausführen
-                search_input = page.get_by_role("main").get_by_role("textbox", name="Song search field")
-                if not search_input.is_visible(timeout=5000):
-                    continue
+        # 3. Metadaten (Release Date, Label, etc.)
+        try:
+            meta_container = active_page.locator("._4aYzP")
+            if meta_container.count() > 0:
+                meta_items = meta_container.locator("div")
+                for i in range(meta_items.count()):
+                    item = meta_items.nth(i)
+                    text = item.inner_text().strip()
+                    if ":" in text:
+                        parts = text.split(":", 1)
+                        if len(parts) == 2:
+                            lab = parts[0].strip().lower().replace(" ", "_")
+                            val = parts[1].strip()
+                            results[lab] = val
+        except Exception:
+            pass
 
-                search_input.fill(query)
-                search_input.press("Enter")
+        # 4. Direkter Songstats-Link
+        songstats_url = None
+        try:
+            songstats_link = active_page.locator("a[aria-label='Songstats']")
+            if songstats_link.count() > 0:
+                href = songstats_link.first.get_attribute("href")
+                if href:
+                    # &source=overview anhängen, damit Songstats nicht auf Spotify weiterleitet
+                    songstats_url = f"{href.split('?')[0]}?source=overview"
+        except Exception:
+            pass
 
-                # Resultat finden
-                best_song_locator = find_best_result(page, target_string, artists)
-                if best_song_locator:
-                    break
+        audio_features_keys = ["acousticness", "danceability", "energy", "instrumentalness", "liveness", "speechiness", "happiness", "loudness"]
 
-            if not best_song_locator:
-                log_status("⚠️ Kein passender Treffer auf Tunebat gefunden.")
-                return None
+        formatted_results = {
+            "url": active_page.url,
+            "title": song,
+            "artist": ", ".join(artists),
+            "key": results.get("key"),
+            "camelot": results.get("camelot"),
+            "bpm": results.get("bpm"),
+            "duration": results.get("duration"),
+            "popularity": results.get("popularity"),
+            "release_date": results.get("release_date"),
+            "explicit": results.get("explicit"),
+            "album": results.get("album"),
+            "label": results.get("label"),
+            "audio_features": {k: results.get(k) for k in audio_features_keys if k in results},
+            "songstats_url": songstats_url,
+        }
 
-            # Song-Seite laden per Klick (Bot-Detection Umgehung)
-            log_status("🖱️ Klicke auf bestes Suchergebnis...")
-            best_song_locator.click()
-            page.wait_for_selector(".yIPfN", timeout=10000)
+        formatted_results = {k: v for k, v in formatted_results.items() if v is not None}
+        log_status("✅ Daten extrahiert.")
+        return formatted_results
 
-            # SECTION: Datenextraktion
-            log_status("🔍 Extrahiere Metriken...")
-            results = {}
-
-            # 1. Key, BPM, Duration
-            try:
-                metrics_containers = page.locator(".yIPfN")
-                for i in range(metrics_containers.count()):
-                    container = metrics_containers.nth(i)
-                    value = container.locator("h3").inner_text().strip()
-                    label = container.locator("span.ant-typography-secondary").inner_text().strip().lower()
-                    results[label] = value
-            except Exception:
-                pass
-
-            # 2. Progress-Metriken (Popularity, Energy, etc.)
-            try:
-                progress_containers = page.locator("._1MCwQ")
-                for i in range(progress_containers.count()):
-                    container = progress_containers.nth(i)
-                    value_elem = container.locator(".ant-progress-text")
-                    label_elem = container.locator("span.ant-typography").last
-
-                    if value_elem.count() > 0 and label_elem.count() > 0:
-                        val = value_elem.inner_text().strip()
-                        lab = label_elem.inner_text().strip().lower()
-                        results[lab] = val
-            except Exception:
-                pass
-
-            # 3. Metadaten (Release Date, Label, etc.)
-            try:
-                meta_container = page.locator("._4aYzP")
-                if meta_container.count() > 0:
-                    meta_items = meta_container.locator("div")
-                    for i in range(meta_items.count()):
-                        item = meta_items.nth(i)
-                        text = item.inner_text().strip()
-                        if ":" in text:
-                            parts = text.split(":", 1)
-                            if len(parts) == 2:
-                                lab = parts[0].strip().lower().replace(" ", "_")
-                                val = parts[1].strip()
-                                results[lab] = val
-            except Exception:
-                pass
-
-            audio_features_keys = ["acousticness", "danceability", "energy", "instrumentalness", "liveness", "speechiness", "happiness", "loudness"]
-
-            formatted_results = {
-                "url": page.url,
-                "title": song,
-                "artist": ", ".join(artists),
-                "key": results.get("key"),
-                "camelot": results.get("camelot"),
-                "bpm": results.get("bpm"),
-                "duration": results.get("duration"),
-                "popularity": results.get("popularity"),
-                "release_date": results.get("release_date"),
-                "explicit": results.get("explicit"),
-                "album": results.get("album"),
-                "label": results.get("label"),
-                "audio_features": {k: results.get(k) for k in audio_features_keys if k in results},
-            }
-
-            formatted_results = {k: v for k, v in formatted_results.items() if v is not None}
-            log_status("✅ Daten extrahiert.")
-            return formatted_results
-
+    if page:
+        try:
+            return _do_search(page)
         except Exception as e:
             log_status(f"❌ Fehler bei Tunebat: {e}")
-        finally:
-            if dev_mode:
-                log_status("\n🛠️ DEV-MODE: Browser bleibt offen. Drücke ENTER zum Schließen...")
-                input("fertig...")
-            context.close()
-            if browser:
-                browser.close()
-
-    return None
+            return None
+    else:
+        with sync_playwright() as p:
+            context = create_browser_context(p, headless=actual_headless)
+            browser = context.browser
+            new_page = context.new_page()
+            try:
+                return _do_search(new_page)
+            except Exception as e:
+                log_status(f"❌ Fehler bei Tunebat: {e}")
+            finally:
+                if dev_mode:
+                    log_status("\n🛠️ DEV-MODE: Browser bleibt offen. Drücke ENTER zum Schließen...")
+                    input("fertig...")
+                context.close()
+                if browser:
+                    browser.close()
+        return None
 
 
 # DEF: Haupteinsprungpunkt

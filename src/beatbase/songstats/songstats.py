@@ -17,22 +17,32 @@ from beatbase.utils.now_playing import read_now_playing_data
 
 
 # DEF: Songstats-Suche (eigene Browser-Lifecycle)
-def search_on_songstats(song: str, artists: list[str], headless: bool = False) -> dict:
+def search_on_songstats(song: str, artists: list[str], headless: bool = False, page=None, direct_url: str | None = None) -> dict:
     """Öffnet eigenen Playwright-Kontext, scrapet einen Song und schließt wieder.
 
     Pendant zu `genius.search_on_genius()`. Für Aufrufer, die nicht selbst
     einen Browser-Kontext verwalten wollen (z. B. der zentrale Watcher).
     """
-    with sync_playwright() as p:
-        context = create_browser_context(p, headless=headless)
-        page = context.pages[0] if context.pages else context.new_page()
+    if page:
         try:
-            results = run_songstats_extraction(page, song, artists)
+            results = run_songstats_extraction(page, song, artists, direct_url=direct_url)
             if results:
                 log_status(f"📊 Songstats Daten: {json.dumps(results, indent=4, ensure_ascii=False)}")
             return results
-        finally:
-            context.close()
+        except Exception as e:
+            log_status(f"❌ Songstats Fehler: {e}")
+            return {}
+    else:
+        with sync_playwright() as p:
+            context = create_browser_context(p, headless=headless)
+            new_page = context.pages[0] if context.pages else context.new_page()
+            try:
+                results = run_songstats_extraction(new_page, song, artists, direct_url=direct_url)
+                if results:
+                    log_status(f"📊 Songstats Daten: {json.dumps(results, indent=4, ensure_ascii=False)}")
+                return results
+            finally:
+                context.close()
 
 
 def main():
