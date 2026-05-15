@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beatbase"
+version = "0.1.0"
+description = "Ein neues Python Projekt"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [
+    { name = "Leon", email = "leon@example.com" }
+]
+dependencies = [
+    "playwright",
+    "spotipy",
+    "python-dotenv",
+    "beautifulsoup4",
+    "selenium"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
