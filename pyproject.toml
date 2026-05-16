@@ -35,3 +35,12 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]  # Errors, Pyflakes, Isort
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# WHY: --import-mode=importlib erlaubt mehrere test_*.py mit gleichem basename
+# in verschiedenen Subdirectories ohne __init__.py.
+addopts = "-ra --strict-markers --import-mode=importlib"
+markers = [
+    "integration: braucht externe Resourcen (Netzwerk, echtes HTML, Browser)",
+]

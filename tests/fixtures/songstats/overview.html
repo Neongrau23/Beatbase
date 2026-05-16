@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head><title>Songstats Overview Fixture</title></head>
+<body>
+  <!--
+    Minimal-Fixture, das die Selektoren von _extract_overview trifft:
+    - display: flex Rows mit "color: rgb(171, 171, 171)"-Label-Spans
+    - Pills mit "background: rgb(46, 46, 46)"
+    - Light-Text mit "color: rgb(240, 240, 240)"
+    - Genre-Hashtags (Spans mit # am Anfang)
+    - Music-Info-Cards mit "background-color: rgb(35, 35, 35)"
+  -->
+
+  <!-- Artists -->
+  <div style="display: flex">
+    <span style="color: rgb(171, 171, 171)">Artists:</span>
+    <div style="background: rgb(46, 46, 46)"><span>The Weeknd</span></div>
+  </div>
+
+  <!-- Record Labels (mehrere Pills) -->
+  <div style="display: flex">
+    <span style="color: rgb(171, 171, 171)">Record Labels:</span>
+    <div style="background: rgb(46, 46, 46)"><span>XO</span></div>
+    <div style="background: rgb(46, 46, 46)"><span>Republic</span></div>
+  </div>
+
+  <!-- ISRCs -->
+  <div style="display: flex">
+    <span style="color: rgb(171, 171, 171)">ISRCs:</span>
+    <div style="background: rgb(46, 46, 46)"><span>USUG11904206</span></div>
+  </div>
+
+  <!-- Release Date (light-text fallback, keine Pills) -->
+  <div style="display: flex">
+    <span style="color: rgb(171, 171, 171)">Release Date:</span>
+    <span style="color: rgb(240, 240, 240)">2019-11-29</span>
+  </div>
+
+  <!-- Distributors -->
+  <div style="display: flex">
+    <span style="color: rgb(171, 171, 171)">Distributors:</span>
+    <div style="background: rgb(46, 46, 46)"><span>Universal</span></div>
+  </div>
+
+  <!-- Genres (Hashtags) -->
+  <span style="color: rgb(240, 240, 240)">#synth-pop</span>
+  <span style="color: rgb(240, 240, 240)">#pop</span>
+  <span style="color: rgb(240, 240, 240)">#electronic</span>
+
+  <!-- Music Info Cards -->
+  <div style="background: rgb(35, 35, 35)">
+    <span style="font-size: 16px">Tempo</span>
+    <span style="font-size: 30px">171 BPM</span>
+  </div>
+  <div style="background-color: rgb(35, 35, 35)">
+    <span style="font-size: 16px">Key</span>
+    <span style="font-size: 30px">F# minor</span>
+  </div>
+  <div style="background: rgb(35, 35, 35)">
+    <span style="font-size: 16px">Duration</span>
+    <span style="font-size: 30px">3:20</span>
+  </div>
+  <div style="background: rgb(35, 35, 35)">
+    <span style="font-size: 16px">Time Signature</span>
+    <span style="font-size: 30px">4/4</span>
+  </div>
+
+  <!-- Rauschen, das ignoriert werden muss -->
+  <div style="display: flex">
+    <span style="color: rgb(171, 171, 171)">Other field:</span>
+    <span>Should be ignored</span>
+  </div>
+</body>
+</html>

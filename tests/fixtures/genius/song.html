@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head><title>Genius Song Fixture</title></head>
+<body>
+  <!--
+    Minimal-Fixture, das die Selektoren von extrahiere_song_details_json trifft:
+    - h1 (Titel)
+    - SongHeader-desktop__SongDetails (Artist via /artists/-Link)
+    - MetadataStats__Container (Views)
+    - data-lyrics-container="true" (Lyrics mit Sections)
+    - SongCredits__Columns + Credit__Container/Label/Contributor
+    - AlbumTracklist__Container + AlbumTracklist__Track/TrackNumber/TrackName
+  -->
+
+  <h1>Blinding Lights</h1>
+
+  <div class="SongHeader-desktop__SongDetails-abc123">
+    <a href="/artists/the-weeknd">The Weeknd</a>
+  </div>
+
+  <div class="MetadataStats__Container-xyz">1.2M views</div>
+
+  <!-- Lyrics-Container -->
+  <div data-lyrics-container="true">[Intro]<br>Yeah<br>[Verse 1]<br>I've been tryna call<br>I've been on my own for long enough<br>[Chorus]<br>I said, ooh, I'm blinded by the lights<br></div>
+
+  <!-- Credits -->
+  <div class="SongCredits__Columns-foo">
+    <div class="Credit__Container-1">
+      <div class="Credit__Label-x">Producers</div>
+      <div class="Credit__Contributor-y">
+        <a href="/p/max">Max Martin</a>
+        <a href="/p/oscar">Oscar Holter</a>
+      </div>
+    </div>
+    <div class="Credit__Container-2">
+      <div class="Credit__Label-x">Writers</div>
+      <div class="Credit__Contributor-y">
+        <a href="/w/abel">Abel Tesfaye</a>
+      </div>
+    </div>
+    <div class="Credit__Container-3">
+      <div class="Credit__Label-x">Release Date</div>
+      <div class="Credit__Contributor-y">November 29, 2019</div>
+    </div>
+  </div>
+
+  <!-- Album-Tracklist -->
+  <ol class="AlbumTracklist__Container-bar">
+    <li class="AlbumTracklist__Track-z">
+      <div class="AlbumTracklist__TrackNumber-q">1.</div>
+      <div class="AlbumTracklist__TrackName-w">
+        <a href="/songs/alone-again">Alone Again</a>
+      </div>
+    </li>
+    <li class="AlbumTracklist__Track-z">
+      <div class="AlbumTracklist__TrackNumber-q">2.</div>
+      <div class="AlbumTracklist__TrackName-w">
+        <a href="/songs/too-late">Too Late</a>
+      </div>
+    </li>
+    <li class="AlbumTracklist__Track-z">
+      <div class="AlbumTracklist__TrackNumber-q">3.</div>
+      <!-- Current Song ohne Link -->
+      <div class="AlbumTracklist__TrackName-w">3. Blinding Lights</div>
+    </li>
+  </ol>
+</body>
+</html>
