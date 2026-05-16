@@ -5,6 +5,7 @@ Pollt Spotify in Intervallen, schreibt den aktuellen Song in den IPC-Layer
 deklarierten Quellen. Browser werden pro Song frisch geöffnet und geschlossen.
 """
 
+import json
 import os
 import time
 from collections.abc import Callable
@@ -93,9 +94,9 @@ EXTRACTORS: list[ExtractorSpec] = [
 ]
 
 
-# DEF: Speichert die Zusammenfassung in eine Datei
-def _archive_summary(track_id: str, summary_json: str) -> None:
-    """Speichert die Master-JSON im Archivordner."""
+# DEF: Schreibt die Master-JSON in den Archivordner
+def _archive_summary_file(track_id: str, summary_json: str) -> None:
+    """Speichert die Master-JSON als Datei in JSON_EXPORT_DIR."""
     if not os.path.exists(JSON_EXPORT_DIR):
         os.makedirs(JSON_EXPORT_DIR, exist_ok=True)
 
@@ -107,11 +108,21 @@ def _archive_summary(track_id: str, summary_json: str) -> None:
     except Exception as e:
         log_status(f"❌ Archivierungs-Fehler: {e}")
 
+
+# DEF: Speichert die Summary in die lokale SQLite-DB
+def _archive_summary_db(track_id: str, summary_json: str) -> None:
+    """Schreibt die Summary via core/songs_db.py in data/songs.db."""
     try:
-        import json
         save_song_summary(track_id, json.loads(summary_json))
     except Exception as e:
         log_status(f"❌ DB-Fehler: {e}")
+
+
+# DEF: Persistiert die Summary (Datei + DB)
+def _persist_summary(track_id: str, summary_json: str) -> None:
+    """Schreibt die Summary in den JSON-Archivordner und die lokale SQLite-DB."""
+    _archive_summary_file(track_id, summary_json)
+    _archive_summary_db(track_id, summary_json)
 
 
 # DEF: Aktualisiert den IPC-Layer mit dem aktuellen Track
@@ -189,7 +200,7 @@ def _handle_new_track(track: dict, headless: bool = WATCHER_HEADLESS) -> None:
     # Archivierung der Daten pro Song
     spotify_id = track.get("id")
     if spotify_id:
-        _archive_summary(spotify_id, summary_json)
+        _persist_summary(spotify_id, summary_json)
 
 
 # DEF: Haupt-Loop
