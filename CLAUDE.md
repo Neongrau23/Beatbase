@@ -35,7 +35,7 @@ uv run ruff check .
 uv run ruff check . --fix
 ```
 
-Es gibt aktuell **keine Test-Suite** (`tests/` ist leer). Wenn du Tests hinzufügst, spiegle die `src/`-Struktur.
+Test-Suite: `uv run pytest`. Konfig in `pyproject.toml` (`[tool.pytest.ini_options]`, `--import-mode=importlib`). Struktur in `tests/` spiegelt `src/`; HTML-Fixtures unter `tests/fixtures/<modul>/`. Globaler Bus wird per autouse-Fixture in `tests/conftest.py` vor jedem Test gecleart.
 
 `--track-id` bei Songstats schreibt Audio-Features via `core/db.py::update_audio_features` direkt in eine **externe** SQLite-DB. Pfad steht in `BEATBASE_DB_PATH` (Default `C:/workspace/beatbase/spotify.db`, via Env-Var überschreibbar). Die DB gehört zu einem übergeordneten System, nicht zum Repo.
 

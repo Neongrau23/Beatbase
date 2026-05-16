@@ -139,19 +139,68 @@ select = ["E", "F", "I"]
 
 ## Tests
 
-Aktuell **keine Test-Suite**. `tests/` ist leer. Empfehlung:
+```powershell
+uv run pytest                        # alle Tests (~0.4s)
+uv run pytest tests/utils/           # nur ein Subtree
+uv run pytest -k callcenter          # nach Namen filtern
+uv run pytest -m "not integration"   # Integration-Tests ausschliessen
+```
 
-- Tests spiegeln die `src/`-Struktur:
-  `tests/utils/test_callcenter.py` testet `src/beatbase/utils/callcenter.py`.
-- Pytest verwenden (bereits unter `[project.optional-dependencies] dev` in
-  `pyproject.toml`).
-- Browser-Extraktoren mit HTML-Fixtures testen (z. B. unter
-  `tests/fixtures/songstats/<song-id>.html`) — keine echten Live-Calls. Die
-  reinen Extraktions-Funktionen (`_extract_overview`, `extract_song_data`,
-  `extrahiere_song_details_json`) bekommen ein BeautifulSoup-Objekt bzw. eine
-  Playwright-Mock-Page und können so deterministisch geprüft werden.
-- Bus / Callcenter sind unit-test-freundlich (`bus.clear()` vor jedem Test,
-  Schema-Tests für `_pick` / `_join_list` / `_from_dict`).
+Konfig in `pyproject.toml` unter `[tool.pytest.ini_options]`:
+- `testpaths = ["tests"]`
+- `--import-mode=importlib` — erlaubt mehrere `test_*.py` mit gleichem
+  basename in verschiedenen Subdirs ohne `__init__.py`.
+- Marker `integration` fuer Browser-/Netz-Tests (aktuell nicht benutzt).
+
+### Struktur
+
+`tests/` spiegelt `src/beatbase/`:
+
+```
+tests/
+├── conftest.py                          # autouse-Fixture cleart Hotline-Bus
+├── fixtures/
+│   ├── songstats/overview.html
+│   ├── genius/song.html
+│   └── songbpm/detail.html
+├── core/test_hotline.py
+├── utils/
+│   ├── test_callcenter.py
+│   ├── test_now_playing.py
+│   ├── test_search_variations.py
+│   └── test_validator.py
+├── songstats/test_overview.py
+├── genius/test_extractor.py
+└── songbpm/test_extractor.py
+```
+
+### Was abgedeckt ist
+
+- **Pure functions** (Hotline-Bus, Callcenter-Schema mit Source/FieldSpec/
+  _pick/_join_list/_from_dict/_determine_release_date, generate_variations,
+  extract_featured_artists, calculate_validation_score).
+- **IPC-Layer file-backend** (JSON-Roundtrip, Sentinel, Legacy-Format,
+  atomares Schreiben).
+- **Extraktoren mit HTML-Fixtures** (`_extract_overview`,
+  `extrahiere_song_details_json`, `extract_song_info` via
+  monkeypatched `requests.get`).
+
+### Was nicht abgedeckt ist
+
+- Playwright-Pfade (`search_on_*`, `browser/navigator.py`,
+  `browser/context.py`) — brauchen echte HTML-Dumps oder Playwright-Mocks.
+- Watcher-Pipeline-Integration (`_handle_new_track`).
+- `env`-Backend in `now_playing.py` (PowerShell-Subprozess).
+
+### Neue Tests hinzufügen
+
+- Tests spiegeln die `src/`-Struktur. Beispiel: `tests/utils/test_callcenter.py`
+  testet `src/beatbase/utils/callcenter.py`.
+- Bus / Callcenter sind unit-test-freundlich — die `_clear_bus`-Fixture in
+  `conftest.py` setzt den globalen Singleton vor jedem Test zurueck.
+- Fuer HTML-Fixtures: ein neues Minimal-HTML unter
+  `tests/fixtures/<modul>/<name>.html` ablegen, dann via `fixtures_dir`-
+  Fixture im Test laden.
 
 ## Erweiterung
 

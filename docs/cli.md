@@ -202,6 +202,15 @@ uv run ruff check . --fix
 
 ## Tests
 
-Aktuell keine Test-Suite (`tests/` ist leer). Beim Hinzufügen die `src/`-Struktur
-spiegeln (z. B. `tests/utils/test_callcenter.py` für
-`src/beatbase/utils/callcenter.py`).
+```powershell
+uv run pytest                        # alle Tests
+uv run pytest tests/utils/           # nur ein Subtree
+uv run pytest -k callcenter          # nach Namen filtern
+uv run pytest -m "not integration"   # Integration-Tests ausschliessen
+```
+
+Die Suite besteht aus Unit-Tests (Hotline, Callcenter-Schema,
+Search-Variations, Validator, IPC-Layer) und Extraktor-Tests gegen
+HTML-Fixtures unter `tests/fixtures/<modul>/`. Browser-/Playwright-Pfade
+sind bewusst nicht abgedeckt — fuer e2e-Tests wuerden echte HTML-Dumps
+oder Playwright-Mocks benoetigt.
