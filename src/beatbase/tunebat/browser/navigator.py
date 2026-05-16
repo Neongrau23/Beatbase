@@ -30,9 +30,7 @@ def perform_search(page: Page, query: str) -> bool:
     wait_for_and_dismiss_cookies(page)
 
     try:
-        header_search = page.locator("#header").get_by_role(
-            "textbox", name="Song search field"
-        )
+        header_search = page.locator("#header").get_by_role("textbox", name="Song search field")
         header_search.click(timeout=5000)
         header_search.fill(query)
         page.locator("#header").get_by_role("button", name="Search").click()
@@ -55,12 +53,8 @@ def _fallback_main_search(page: Page, query: str, results_container: Locator) ->
     Tunebats Suche reagiert manchmal erst nach einer Aenderung der Eingabe;
     deshalb wird abwechselnd ein Leerzeichen angehaengt und entfernt.
     """
-    log_status(
-        "⚠️ Keine direkten Ergebnisse, starte Fallback-Suche (Leerzeichen-Trick)..."
-    )
-    main_search = page.get_by_role("main").get_by_role(
-        "textbox", name="Song search field"
-    )
+    log_status("⚠️ Keine direkten Ergebnisse, starte Fallback-Suche (Leerzeichen-Trick)...")
+    main_search = page.get_by_role("main").get_by_role("textbox", name="Song search field")
     for attempt in range(4):
         try:
             main_search.click(timeout=3000)

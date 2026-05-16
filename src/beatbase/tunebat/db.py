@@ -1,4 +1,16 @@
-"""SQLite-Speicher fuer Tunebat-Suchergebnisse."""
+"""Append-only SQLite-Persistenz fuer rohe Tunebat-Suchergebnisse.
+
+Jeder Aufruf von save_search_results() schreibt alle Treffer einer Suchanfrage
+als separate Zeilen in die Tabelle search_results (data/tunebat_searches.db).
+Eintraege werden niemals ueberschrieben – das ermoeglicht spaetere Analyse,
+welche Suchbegriffe wie viele und welche Treffer geliefert haben.
+
+Schema:  search_term | title | artists (JSON) | key | bpm | camelot |
+         popularity | image_url | tunebat_url | spotify_url | songstats_url |
+         searched_at (ISO-8601 UTC)
+
+Index:   search_term fuer schnelle Abfragen nach Suchbegriff.
+"""
 
 import json
 import sqlite3
@@ -22,7 +34,7 @@ def _get_connection() -> sqlite3.Connection:
             camelot TEXT,
             popularity INTEGER,
             image_url TEXT,
-            info_url TEXT,
+            tunebat_url TEXT,
             spotify_url TEXT,
             songstats_url TEXT,
             searched_at TEXT NOT NULL
@@ -53,7 +65,7 @@ def save_search_results(search_term: str, results: list[dict]) -> None:
             r.get("camelot"),
             r.get("popularity"),
             r.get("imageUrl"),
-            r.get("infoUrl"),
+            r.get("tunebatUrl"),
             r.get("spotifyUrl"),
             r.get("songstatsUrl"),
             now,
@@ -64,7 +76,7 @@ def save_search_results(search_term: str, results: list[dict]) -> None:
     conn.executemany(
         """INSERT INTO search_results
            (search_term, title, artists, key, bpm, camelot, popularity,
-            image_url, info_url, spotify_url, songstats_url, searched_at)
+            image_url, tunebat_url, spotify_url, songstats_url, searched_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         rows,
     )

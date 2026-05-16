@@ -1,5 +1,7 @@
 """Parser fuer Tunebat-Suchergebnisse (HTML -> strukturierte Dicts)."""
 
+from urllib.parse import urlencode, urlparse, urlunparse
+
 from bs4 import BeautifulSoup
 
 
@@ -24,9 +26,9 @@ def _parse_row(row, soup: BeautifulSoup) -> dict | None:
         return None
 
     track: dict = {}
-    track["infoUrl"] = info_link.get("href")
+    track["tunebatUrl"] = "https://tunebat.com" + info_link.get("href")
 
-    track_id = track["infoUrl"].rsplit("/", 1)[-1] if track["infoUrl"] else None
+    track_id = track["tunebatUrl"].rsplit("/", 1)[-1] if track["tunebatUrl"] else None
 
     img = info_link.find("img")
     track["imageUrl"] = img.get("src") if img else None
@@ -61,16 +63,17 @@ def _parse_row(row, soup: BeautifulSoup) -> dict | None:
     if track_id:
         spotify_link = row.find("a", attrs={"aria-label": "Spotify"})
         if not spotify_link:
-            spotify_link = soup.find(
-                "a", href=lambda h: h and f"spotify.com/track/{track_id}" in h
-            )
+            spotify_link = soup.find("a", href=lambda h: h and f"spotify.com/track/{track_id}" in h)
         track["spotifyUrl"] = spotify_link.get("href") if spotify_link else None
 
         songstats_link = row.find("a", attrs={"aria-label": "Songstats"})
         if not songstats_link:
-            songstats_link = soup.find(
-                "a", href=lambda h: h and f"songstats.com/t/{track_id}" in h
-            )
-        track["songstatsUrl"] = songstats_link.get("href") if songstats_link else None
+            songstats_link = soup.find("a", href=lambda h: h and f"songstats.com/t/{track_id}" in h)
+        raw = songstats_link.get("href") if songstats_link else None
+        if raw:
+            parsed = urlparse(raw)
+            track["songstatsUrl"] = urlunparse(parsed._replace(query=urlencode({"source": "overview"})))
+        else:
+            track["songstatsUrl"] = None
 
     return track
