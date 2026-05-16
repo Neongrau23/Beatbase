@@ -101,6 +101,7 @@ def search_on_genius(
     artists: list[str],
     headless: bool = HEADLESS,
     page=None,
+    album: str | None = None,
 ) -> dict | None:
     """SECTION: ORCHESTRATION - Sucht auf Genius und gibt extrahierte Song-Details zurück.
 

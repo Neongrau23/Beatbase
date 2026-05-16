@@ -23,6 +23,7 @@ def search_on_songbpm(
     artists: list[str],
     headless: bool = True,
     page=None,
+    album: str | None = None,
 ) -> dict | None:
     """Führt eine Suche auf SongBPM aus und extrahiert die Details des besten Treffers."""
     search_query = f"{song} {', '.join(artists)}"

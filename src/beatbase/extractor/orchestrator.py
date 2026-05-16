@@ -127,6 +127,7 @@ def _push_spotify(track: dict) -> None:
     bus.set("spotify", "id", track.get("id"))
     bus.set("spotify", "name", track.get("song"))
     bus.set("spotify", "artists", track.get("artists"))
+    bus.set("spotify", "album", track.get("album"))
     bus.set("spotify", "isrc", track.get("isrc"))
     bus.set("spotify", "release_date", track.get("release_date"))
     bus.set("spotify", "url", track.get("spotify_url"))
@@ -145,7 +146,7 @@ def _run_extractor(spec: ExtractorSpec, track: dict, page, headless: bool) -> st
     """
     log_status(f"\n--- {spec.label} ---")
     try:
-        kwargs: dict = {"headless": headless, "page": page}
+        kwargs: dict = {"headless": headless, "page": page, "album": track.get("album")}
         if spec.direct_url_from:
             # WHY: explizit default=None — der Hotline-Default ist ein String,
             # der sonst als (fehlerhafte) URL durchgereicht würde.

@@ -72,7 +72,8 @@ def _parse_row(row, soup: BeautifulSoup) -> dict | None:
         raw = songstats_link.get("href") if songstats_link else None
         if raw:
             parsed = urlparse(raw)
-            track["songstatsUrl"] = urlunparse(parsed._replace(query=urlencode({"source": "overview"})))
+            qs = urlencode({"source": "overview"})
+            track["songstatsUrl"] = urlunparse(parsed._replace(query=qs))
         else:
             track["songstatsUrl"] = None
 

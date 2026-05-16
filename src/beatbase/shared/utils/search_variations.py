@@ -2,6 +2,14 @@ import re
 from unicodedata import normalize
 
 
+def _to_tunebat_slug(*parts: str) -> str:
+    """Baut aus Teilen einen Tunebat-Suchslug: Leerzeichen und Sonderzeichen → Bindestriche."""
+    combined = " ".join(p for p in parts if p and p.strip())
+    norm = normalize("NFKD", combined).encode("ascii", "ignore").decode("ascii")
+    norm = re.sub(r"[^a-z0-9\s-]", " ", norm.lower())
+    return re.sub(r"[\s-]+", "-", norm.strip())
+
+
 # SECTION: HELPERS
 def _join(*parts: str) -> str:
     """Verbindet Teile mit Leerzeichen, ignoriert leere Strings."""
@@ -73,6 +81,51 @@ def generate_variations(target_song: str, target_artists: list[str], limit: int 
             seen_queries.add(q.lower())
 
     return unique_queries[:limit]
+
+
+# DEF: generate_tunebat_variations(song, artists, album) -> list[str]
+def generate_tunebat_variations(
+    song: str, artists: list[str], album: str | None = None
+) -> list[str]:
+    """Erstellt Tunebat-spezifische Suchbegriffe im Slug-Format (Leerzeichen → Bindestriche).
+
+    Reihenfolge: Album/Single zuerst, dann Songtitel — jeweils mit allen
+    Kuenstlern und danach nur mit dem Hauptkuenstler.
+    """
+    s_norm = song.replace("’", "'").replace("‘", "'")
+    s_norm = normalize("NFKD", s_norm).encode("ascii", "ignore").decode("ascii")
+    clean_song = re.sub(
+        r"(?i)\s*[\(\[]?\b(von|feat\.?|ft\.?|with)\b.*", "", s_norm
+    ).strip().rstrip("([ ")
+    core_title = re.sub(r"\(.*?\)", "", clean_song).split(" - ")[0].strip()
+
+    artists_str = " ".join(artists)
+    main_artist = artists[0] if artists else ""
+    multi = len(artists) > 1
+
+    raw: list[str] = []
+
+    if album:
+        raw.append(_to_tunebat_slug(album, artists_str))
+        if multi:
+            raw.append(_to_tunebat_slug(album, main_artist))
+
+    raw.append(_to_tunebat_slug(clean_song, artists_str))
+    if multi:
+        raw.append(_to_tunebat_slug(clean_song, main_artist))
+
+    if core_title != clean_song:
+        raw.append(_to_tunebat_slug(core_title, artists_str))
+        if multi:
+            raw.append(_to_tunebat_slug(core_title, main_artist))
+
+    seen: set[str] = set()
+    result: list[str] = []
+    for q in raw:
+        if q and q not in seen:
+            result.append(q)
+            seen.add(q)
+    return result
 
 
 # DEF: extract_featured_artists(song_title) -> list[str]

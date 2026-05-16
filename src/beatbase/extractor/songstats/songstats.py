@@ -22,6 +22,7 @@ def search_on_songstats(
     headless: bool = False,
     page=None,
     direct_url: str | None = None,
+    album: str | None = None,
 ) -> dict | None:
     """Öffnet eigenen Playwright-Kontext, scrapet einen Song und schließt wieder.
 

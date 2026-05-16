@@ -54,6 +54,7 @@ def get_current_spotify_track() -> dict | None:
             "id": item["id"],
             "song": item["name"],
             "artists": [artist["name"] for artist in item["artists"]],
+            "album": item.get("album", {}).get("name"),
             "isrc": item.get("external_ids", {}).get("isrc"),
             "release_date": item.get("album", {}).get("release_date"),
             "spotify_url": item.get("external_urls", {}).get("spotify"),

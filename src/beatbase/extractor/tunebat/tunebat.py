@@ -22,13 +22,17 @@ from beatbase.extractor.tunebat.scraper.extractor import extract_song_data
 from beatbase.shared.config import SENTINEL_NONE
 from beatbase.shared.now_playing import read_now_playing_data
 from beatbase.shared.utils.log import log_status
-from beatbase.shared.utils.search_variations import extract_featured_artists, generate_variations
+from beatbase.shared.utils.search_variations import (
+    extract_featured_artists,
+    generate_tunebat_variations,
+)
 
 
 # DEF: Künstlerliste und Suchbegriffe für Tunebat vorbereiten
 def _prepare_search_data(
     song: str,
     artists: list[str],
+    album: str | None = None,
     page=None,
 ) -> tuple[list[str], str, list[str]]:
     """SECTION: PREPARATION - Bereitet Künstlerliste, Zielstring und Suchbegriffe vor.
@@ -53,7 +57,7 @@ def _prepare_search_data(
                     artists.append(artist)
 
     target_string = f"{song} {' '.join(artists)}".lower()
-    queries = generate_variations(song, artists)
+    queries = generate_tunebat_variations(song, artists, album)
     return artists, target_string, queries
 
 
@@ -96,6 +100,7 @@ def search_on_tunebat(
     headless: bool = HEADLESS,
     dev_mode: bool = False,
     page=None,
+    album: str | None = None,
 ) -> dict | None:
     """SECTION: ORCHESTRATION - Sucht auf Tunebat und liefert extrahierte Song-Details.
 
@@ -104,7 +109,7 @@ def search_on_tunebat(
     fuer manuelle Inspektion offen gelassen (blockiert auf ``input()``).
     """
     actual_headless = False if dev_mode else headless
-    artists, target_string, queries = _prepare_search_data(song, artists, page=page)
+    artists, target_string, queries = _prepare_search_data(song, artists, album=album, page=page)
 
     if page:
         try:
