@@ -118,7 +118,24 @@ Jeder Browser-Extraktor folgt dem Submodul-Pattern:
 - Spezifische Exceptions fangen, kein nacktes `except:`. **Ausnahme:** `_run_extractor` in `core/watcher.py` — dort ist `except Exception` bewusst breit, damit ein Scraper-Crash die Pipeline nicht killt.
 - `search_on_*`-Funktionen liefern **`dict | None`** — `None` bei Fehler oder leerem Ergebnis. Keine `{}`-Sentinels.
 - Zeilenlänge 100, `target-version = "py311"`, Linter ist Ruff (`select = ["E", "F", "I"]`).
-- Commit-Konvention: `type(scope): kurze beschreibung` auf Deutsch (siehe `git log`).
+- Commit-Konvention: `type(scope): kurze beschreibung` auf Deutsch. Aufbau:
+
+  ```
+  type(scope): kurze zusammenfassung (Imperativ, Deutsch, max ~72 Zeichen)
+  <Leerzeile>
+  Erklaerung WARUM die Aenderung noetig war und was sich konkret
+  aendert. Kein Nacherzaehlen des Diffs — der steht im Code.
+
+  datei/oder/modul.py           (optionale Sektion pro Datei/Gruppe)
+  -------------------
+  - Was geaendert wurde und warum (max ~60 Zeichen pro Zeile).
+  - Umlaute ausschreiben: ae / oe / ue / ss.
+
+  Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+  ```
+
+  Erlaubte Typen: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`.
+  Scope ist der Modulname (z. B. `tunebat`, `core`, `utils`) oder leer.
 
 ## Konfiguration
 
