@@ -6,8 +6,10 @@ import time
 
 from playwright.sync_api import Locator, Page
 
-from beatbase.core.config import TUNEBAT_URL
+from beatbase.core.config import SAVE_TUNEBAT_HTML, TUNEBAT_URL
 from beatbase.tunebat.config import MATCH_THRESHOLD
+from beatbase.tunebat.db import save_search_results
+from beatbase.tunebat.scraper.results_parser import parse_search_results
 from beatbase.utils.cookie_manager import wait_for_and_dismiss_cookies
 from beatbase.utils.log import log_status
 from beatbase.utils.validator import calculate_validation_score
@@ -145,7 +147,10 @@ def find_best_result(page: Page, target_string: str, artists: list[str]) -> Loca
         # Speichere die HTML des Containers (inklusive aller nachgeladenen Ergebnisse)
         try:
             html_content = results_container.inner_html()
-            _save_debug_html(target_string, html_content)
+            if SAVE_TUNEBAT_HTML:
+                _save_debug_html(target_string, html_content)
+            parsed = parse_search_results(html_content)
+            save_search_results(target_string, parsed)
         except Exception:
             pass
 

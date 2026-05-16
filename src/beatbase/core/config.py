@@ -21,10 +21,13 @@ POLLING_INTERVAL = 10
 WATCHER_HEADLESS = False
 
 # Welche Extraktoren sollen ausgeführt werden?
-ENABLE_GENIUS = False
-ENABLE_SONGSTATS = False
+ENABLE_GENIUS = True
+ENABLE_SONGSTATS = True
 ENABLE_TUNEBAT = True
 ENABLE_SONGBPM = True
+
+# Tunebat-Suchergebnisse: HTML-Dateien speichern?
+SAVE_TUNEBAT_HTML = True
 
 # JSON-Archivierung
 JSON_EXPORT_DIR = "data/json"
