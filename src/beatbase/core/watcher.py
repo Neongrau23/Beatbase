@@ -22,6 +22,7 @@ from beatbase.core.config import (
     WATCHER_HEADLESS,
 )
 from beatbase.core.hotline import bus
+from beatbase.core.songs_db import save_song_summary
 from beatbase.genius.genius import search_on_genius
 from beatbase.songbpm.songbpm import search_on_songbpm
 from beatbase.songstats.songstats import search_on_songstats
@@ -105,6 +106,12 @@ def _archive_summary(track_id: str, summary_json: str) -> None:
         log_status(f"💾 Archiviert: {file_path}")
     except Exception as e:
         log_status(f"❌ Archivierungs-Fehler: {e}")
+
+    try:
+        import json
+        save_song_summary(track_id, json.loads(summary_json))
+    except Exception as e:
+        log_status(f"❌ DB-Fehler: {e}")
 
 
 # DEF: Aktualisiert den IPC-Layer mit dem aktuellen Track
