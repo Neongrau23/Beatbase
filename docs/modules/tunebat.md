@@ -3,9 +3,11 @@
 Quellen:
 - `src/beatbase/tunebat/tunebat.py` — CLI + Orchestrator
 - `src/beatbase/tunebat/browser/context.py` — Playwright-Kontext mit Stealth
-- `src/beatbase/tunebat/browser/navigator.py` — Suche, Pagination, Resultat-Auswahl
+- `src/beatbase/tunebat/browser/navigator.py` — Suche, Pagination, Resultat-Auswahl, HTML-Dump + DB-Write
 - `src/beatbase/tunebat/browser/warm_profile.py` — Profil-Warmup gegen Bot-Detection
 - `src/beatbase/tunebat/scraper/extractor.py` — Datenextraktion von der Song-Seite
+- `src/beatbase/tunebat/scraper/results_parser.py` — BeautifulSoup-Parser für Suchtreffer (Roh-HTML → Dicts)
+- `src/beatbase/tunebat/db.py` — SQLite-Persistierung der Suchtreffer
 
 Browser-Scraper für [tunebat.com](https://tunebat.com). Liefert BPM, Key,
 Camelot, Duration, Popularity, Audio-Features (Energy, Danceability, …),
@@ -143,6 +145,28 @@ Songstats nicht auf Spotify weiterleitet). Der Watcher legt diesen Wert als
 `bus.set("tunebat", "songstats_url", …)` ab; der nächste Extraktor in der
 Pipeline (Songstats) bekommt ihn als `direct_url` durchgereicht und
 überspringt seine eigene Suche.
+
+## Persistenz: Suchtreffer + Roh-HTML
+
+Zusätzlich zum Bus-Eintrag der finalen Song-Daten schreibt Tunebat bei jeder
+Suche zwei lokale Artefakte:
+
+- **`data/tunebat_searches.db`** — SQLite mit allen geparsten Treffern aus dem
+  Suchergebnis-Container. Eine Zeile pro Treffer, append-only (mit
+  `searched_at`-Zeitstempel). Geschrieben in `browser/navigator.py` über
+  `tunebat/db.py::save_search_results`. Der Parser
+  (`scraper/results_parser.py`) liest aus dem `.hl7iF`-Container Titel,
+  Artists, Key, BPM, Camelot, Popularity, Spotify- und Songstats-Links.
+  Nützlich, um historische Treffer für Analysezwecke nachzuhalten — der Watcher
+  selbst nutzt diese DB nicht weiter.
+- **`data/tunebat_searches/<query>.html`** — Roh-HTML-Dump des
+  Suchergebnis-Containers. Wird über den Toggle `SAVE_TUNEBAT_HTML` in
+  `core/config.py` gesteuert (Default: `True`). Hilfreich beim Debuggen, wenn
+  Tunebats CSS-Klassen wechseln und der Parser brechen sollte — der gespeicherte
+  Dump kann offline gegen den Parser laufen gelassen werden.
+
+Beide Pfade liegen unter `data/` und sind in `.gitignore`. Übersicht aller
+Persistenz-Stellen: [Architektur → Persistenz](../architecture.md#persistenz-stellen).
 
 ## Output-Schema
 

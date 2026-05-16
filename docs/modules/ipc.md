@@ -87,6 +87,17 @@ Tunebat, Songstats, Genius und SongBPM nutzen `read_now_playing_data()`, um
 Songtitel und Künstlerliste sauber getrennt zu erhalten. Ein Fallback für das
 alte String-Format (`"Song von Artist"`) ist in der Lesefunktion integriert.
 
+> ℹ️ **Schreiber-Inkonsistenz:** Der Watcher ruft
+> `write_now_playing(song, artists)` mit getrennten Argumenten auf und produziert
+> das saubere JSON oben. Das Standalone-Spotify-CLI
+> (`python -m beatbase.spotify.spotify_current`) baut dagegen den Suchstring
+> selbst zusammen und ruft `write_now_playing("<Title> von <Artists>")` ohne
+> separate Artist-Liste — im IPC landet daher
+> `{"song": "Title von Artists", "artists": []}`. Der Legacy-Fallback in
+> `read_now_playing_data()` splittet das transparent wieder zurück, sodass
+> Konsumenten beide Schreiber gleich behandeln können. Details:
+> [Spotify-CLI-Modul](spotify.md#cli).
+
 Es gibt keinen Auto-Sync zwischen Backends. Wenn du `IPC_MODE` umschaltest,
 während Beatbase läuft, sehen Konsumenten den alten Wert noch. Im Zweifel
 Watcher neustarten.

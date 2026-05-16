@@ -33,9 +33,15 @@ uv run python -m beatbase.tunebat.browser.warm_profile
 # Lint
 uv run ruff check .
 uv run ruff check . --fix
+
+# Tests
+uv run pytest                        # alle Tests (~0.4s)
+uv run pytest tests/utils/           # nur ein Subtree
+uv run pytest -k callcenter          # nach Namen filtern
+uv run pytest -m "not integration"   # Integration-Tests ausschliessen
 ```
 
-Test-Suite: `uv run pytest`. Konfig in `pyproject.toml` (`[tool.pytest.ini_options]`, `--import-mode=importlib`). Struktur in `tests/` spiegelt `src/`; HTML-Fixtures unter `tests/fixtures/<modul>/`. Globaler Bus wird per autouse-Fixture in `tests/conftest.py` vor jedem Test gecleart.
+Pytest-Konfig in `pyproject.toml` (`[tool.pytest.ini_options]`, `--import-mode=importlib`). Struktur in `tests/` spiegelt `src/`; HTML-Fixtures unter `tests/fixtures/<modul>/`. Globaler Bus wird per autouse-Fixture in `tests/conftest.py` vor jedem Test gecleart. Marker `integration` für Netz-/Browser-Tests (aktuell nicht benutzt).
 
 `--track-id` bei Songstats schreibt Audio-Features via `core/db.py::update_audio_features` direkt in eine **externe** SQLite-DB. Pfad steht in `BEATBASE_DB_PATH` (Default `C:/workspace/beatbase/spotify.db`, via Env-Var überschreibbar). Die DB gehört zu einem übergeordneten System, nicht zum Repo.
 
@@ -50,15 +56,17 @@ Zweistufiger Datenfluss, der Extraktoren von der finalen Datenstruktur entkoppel
 Ein neuer Extraktor muss nur `bus.set(quelle, key, value)` aufrufen — die Aggregation passiert im Callcenter. Das Callcenter gibt ein **festes Schema** mit den Blöcken `meta`, `music_theory`, `audio_features`, `analysis`, `lyrics`, `album_tracklist`, `credits`, `links` aus. Neue Felder dort eintragen.
 
 ### Watcher-Loop (`core/watcher.py`)
-Zentraler Polling-Loop. Pollt Spotify in `POLLING_INTERVAL` (Default 10s), erkennt Songwechsel über die Spotify-Track-ID. Pro Songwechsel:
+Zentraler Polling-Loop. Pollt Spotify in `POLLING_INTERVAL` (Default 10s), erkennt Songwechsel über die Spotify-Track-ID. Die Pipeline ist als **deklarative `EXTRACTORS`-Liste** (`list[ExtractorSpec]`) definiert — neue Quellen werden durch Anhängen eines `ExtractorSpec` integriert, nicht durch If-Kaskaden.
+
+Pro Songwechsel:
 
 1. `bus.clear()` (Hotline-Reset)
 2. IPC-Layer aktualisieren (`write_now_playing`)
 3. Spotify-Rohdaten in Hotline pushen
 4. **Ein gemeinsamer Playwright-Browser-Kontext** wird geöffnet und an alle Extraktoren weitergereicht
 5. Reihenfolge: Tunebat → Songstats → Genius → SongBPM. Jeder Schritt in eigenem try/except — Fehler eines Extraktors stoppen den Watcher nicht
-6. **Cross-Extractor-Optimierung**: Tunebat findet einen `songstats_url`-Direktlink und legt ihn in der Hotline ab. Songstats nutzt diesen `direct_url`-Parameter und überspringt seine eigene Suche
-7. `get_summary_json()` ausgeben und nach `JSON_EXPORT_DIR/{track_id}.json` archivieren
+6. **Cross-Extractor-Optimierung** über `ExtractorSpec.direct_url_from`: Tunebat findet einen `songstats_url`-Direktlink und legt ihn in der Hotline ab. Der Songstats-Spec deklariert `direct_url_from=("tunebat", "songstats_url")`; der Watcher reicht den Wert als `direct_url`-Kwarg durch, Songstats überspringt damit seine eigene Suche
+7. `get_summary_json()` ausgeben, nach `JSON_EXPORT_DIR/{track_id}.json` archivieren **und** zusätzlich via `core/songs_db.py::save_song_summary` in die lokale SQLite-DB `data/songs.db` schreiben (eine flache Tabelle mit Track-ID als Primary Key)
 8. Browser-Kontext schließen
 
 **Wichtig:** Der Watcher steuert den Browser-Lifecycle zentral. Die `search_on_*`-Funktionen akzeptieren ein optionales `page`-Argument; wird es gesetzt, verwalten sie keinen eigenen Browser. Standalone-CLI-Aufrufe öffnen weiterhin ihren eigenen Kontext über das jeweilige `browser/context.py`.
@@ -66,6 +74,12 @@ Zentraler Polling-Loop. Pollt Spotify in `POLLING_INTERVAL` (Default 10s), erken
 Welche Extraktoren laufen, wird in `core/config.py` per Toggle gesteuert (`ENABLE_GENIUS`, `ENABLE_SONGSTATS`, `ENABLE_TUNEBAT`, `ENABLE_SONGBPM`).
 
 Der Watcher schreibt eine **PID-Datei** (`.beatbase.pid`) zum Singleton-Schutz und um `--stop` zu ermöglichen.
+
+### Persistenz-Stellen (drei verschiedene DBs/Pfade — nicht verwechseln!)
+- **`data/json/{track_id}.json`** — JSON-Archiv pro Song, Default-Output des Watchers.
+- **`data/songs.db`** (`core/songs_db.py`) — lokale SQLite, vom Watcher pro Song befüllt. Flache Tabelle mit allen Summary-Feldern (Lyrics/Tracklist/Credits als JSON-Strings).
+- **`data/tunebat_searches.db`** (`tunebat/db.py`) — lokale SQLite mit rohen Tunebat-Suchergebnissen (eine Zeile pro Treffer, mit `searched_at`). Append-only.
+- **`BEATBASE_DB_PATH`** (Default `C:/workspace/beatbase/spotify.db`) — **externe** DB für `core/db.py::update_audio_features`, nur über den `--track-id`-Workflow geschrieben. Gehört zu einem übergeordneten System.
 
 ### IPC-Layer (`utils/now_playing.py`)
 Entkoppelt Extraktoren, die standalone laufen können. Modus in `core/config.py::IPC_MODE`:
@@ -99,14 +113,16 @@ Jeder Browser-Extraktor folgt dem Submodul-Pattern:
 
 ## Code-Konventionen
 
-- **`# DEF: Kurztext`** (max ~40 Zeichen) markiert wichtige Funktionen/Sektionen und erscheint in der VSCode-Minimap. Auch `# SECTION:`, `# ENTRY:`, `# CONFIG:`, `# BRIDGE:`, `# STATE:`, `# WHY:`, `# HELP:` werden im Codebase verwendet.
+- **`# DEF: Kurztext`** (max ~40 Zeichen) markiert wichtige Funktionen/Sektionen und erscheint in der VSCode-Minimap. Auch `# SECTION:`, `# ENTRY:`, `# CONFIG:`, `# BRIDGE:`, `# STATE:`, `# WHY:`, `# HELP:`, `# MARK:` werden im Codebase verwendet.
 - Type Hints überall. Google-Style-Docstrings. f-Strings. `pathlib.Path` (wo möglich — der Bestandscode nutzt teils `os.path`).
-- Spezifische Exceptions fangen, kein nacktes `except:`.
+- Spezifische Exceptions fangen, kein nacktes `except:`. **Ausnahme:** `_run_extractor` in `core/watcher.py` — dort ist `except Exception` bewusst breit, damit ein Scraper-Crash die Pipeline nicht killt.
+- `search_on_*`-Funktionen liefern **`dict | None`** — `None` bei Fehler oder leerem Ergebnis. Keine `{}`-Sentinels.
 - Zeilenlänge 100, `target-version = "py311"`, Linter ist Ruff (`select = ["E", "F", "I"]`).
+- Commit-Konvention: `type(scope): kurze beschreibung` auf Deutsch (siehe `git log`).
 
 ## Konfiguration
 
 - `.env` im Projektroot: `SPOTIPY_CLIENT_ID`, `SPOTIPY_CLIENT_SECRET`, optional `SPOTIPY_REDIRECT_URI`.
-- `src/beatbase/core/config.py`: Watcher- und IPC-Defaults (`POLLING_INTERVAL`, `IPC_MODE`, `WATCHER_HEADLESS`, `SENTINEL_NONE`, `ENABLE_*`-Toggles, `JSON_EXPORT_DIR`, Quellen-URLs).
+- `src/beatbase/core/config.py`: Watcher- und IPC-Defaults (`POLLING_INTERVAL`, `IPC_MODE`, `WATCHER_HEADLESS`, `SENTINEL_NONE`, `ENABLE_*`-Toggles, `JSON_EXPORT_DIR`, `SAVE_TUNEBAT_HTML`, Quellen-URLs).
 - `src/beatbase/{songstats,genius,tunebat}/config.py`: Quellen-spezifische Konstanten (`MATCH_THRESHOLD`, `PROFILE_DIR`, `USER_AGENT`, Timeouts, Headless-Default).
 - `BEATBASE_DB_PATH` (Env-Var oder `core/config.py`-Default) → externer SQLite-Pfad für den `--track-id`-Workflow. Default `C:/workspace/beatbase/spotify.db`.

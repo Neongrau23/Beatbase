@@ -112,8 +112,9 @@ Genius lädt Lyrics-Container lazy. `load_song_page` scrollt schrittweise:
 
 ```python
 page.evaluate("window.scrollTo(0, document.body.scrollHeight/2);")
-page.wait_for_timeout(PAGE_LOAD_SLEEP * 1000)
+time.sleep(PAGE_LOAD_SLEEP)
 page.evaluate("window.scrollTo(0, document.body.scrollHeight);")
+time.sleep(PAGE_LOAD_SLEEP)
 ```
 
 Danach Wartebedingung auf `[data-lyrics-container='true']`.

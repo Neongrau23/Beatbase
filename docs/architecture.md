@@ -199,10 +199,23 @@ uv run python -m beatbase.tunebat.tunebat --song X --artist Y `
 
 Verwende **nie** `print()` für Statusmeldungen, sondern immer `log_status()`.
 
-## Externe Abhängigkeiten
+## Persistenz-Stellen
 
-`songstats.py` schreibt bei Angabe von `--track-id` direkt in eine externe
-SQLite-DB. Der Pfad steht in `BEATBASE_DB_PATH` (Default
-`C:/workspace/beatbase/spotify.db`, via Env-Var überschreibbar). Diese DB
-gehört nicht zum Repo, sondern zu einem übergeordneten System. Siehe
-[`modules/songstats.md`](modules/songstats.md) für Details.
+Beatbase schreibt an mehrere Stellen parallel — nicht verwechseln:
+
+| Pfad | Schreiber | Inhalt |
+|------|-----------|--------|
+| `data/json/{track_id}.json` | `core/watcher.py::_archive_summary` | Master-JSON pro Song (Default-Output) |
+| `data/songs.db` | `core/songs_db.py::save_song_summary` | Lokale SQLite, vom Watcher pro Songwechsel gefüllt. Track-ID = PK, bestehende Einträge werden überschrieben. Lyrics/Tracklist/Credits als JSON-Strings serialisiert. |
+| `data/tunebat_searches.db` | `tunebat/db.py::save_search_results` | Lokale SQLite mit den rohen Tunebat-Suchtreffern. Append-only, eine Zeile pro Treffer mit `searched_at`. |
+| `data/tunebat_searches/<query>.html` | `tunebat/browser/navigator.py::_save_debug_html` | Optionale Roh-HTML-Dumps der Suchergebnisseite. Toggle via `SAVE_TUNEBAT_HTML` in `core/config.py`. |
+| `BEATBASE_DB_PATH` (Default `C:/workspace/beatbase/spotify.db`) | `core/db.py::update_audio_features` | **Externe** SQLite, nur über `--track-id`-Workflow bei Songstats geschrieben. Gehört nicht zum Repo, sondern zu einem übergeordneten System. Pfad via Env-Var überschreibbar. |
+
+Die lokalen `data/`-Pfade sind in `.gitignore`. Die externe DB existiert nur, wenn
+das übergeordnete System sie anlegt — fehlt sie, schlägt der `--track-id`-Pfad
+fehl, alle anderen Workflows laufen weiter.
+
+Details:
+- Songstats `--track-id`-Workflow: [`modules/songstats.md`](modules/songstats.md).
+- Tunebat-Persistenz: [`modules/tunebat.md`](modules/tunebat.md).
+- Watcher-Archivierung: [`modules/watcher.md`](modules/watcher.md).

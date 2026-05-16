@@ -40,6 +40,7 @@ hinterlegt sein.
 | `ENABLE_GENIUS` | `True` | Genius in der Pipeline aktiv. |
 | `ENABLE_SONGBPM` | `True` | SongBPM in der Pipeline aktiv. |
 | `JSON_EXPORT_DIR` | `"data/json"` | Verzeichnis für `{track_id}.json`-Archivierung. |
+| `SAVE_TUNEBAT_HTML` | `True` | Roh-HTML der Tunebat-Suchergebnisseite unter `data/tunebat_searches/<query>.html` ablegen. Hilfreich beim Debuggen geänderter Tunebat-Markup-Klassen. |
 | `BEATBASE_DB_PATH` | `C:/workspace/beatbase/spotify.db` | Externe SQLite-DB für `--track-id`. Via Env-Var überschreibbar. |
 
 ### IPC-Mode wählen
@@ -97,7 +98,22 @@ Profil-Pfad ist im Modul fest verdrahtet: `<root>/.profiles/songstats_profile/`.
 | `HEADLESS` | `True` | Standalone-Default; im Watcher überschrieben. |
 | `MATCH_THRESHOLD` | `0.8` | Mindest-Score für Suchergebnisse. |
 
-## Datenbank-Pfad
+## Persistenz-Pfade
+
+Beatbase schreibt an mehrere Stellen. Die lokalen Pfade liegen alle unter
+`data/` (in `.gitignore`); die externe DB hängt am Env-/Config-Wert
+`BEATBASE_DB_PATH`.
+
+### Lokal (`data/`)
+
+| Pfad | Quelle | Inhalt |
+|------|--------|--------|
+| `data/json/{track_id}.json` | `core/watcher.py` | Master-JSON pro Song. Pfad steuerbar via `JSON_EXPORT_DIR`. |
+| `data/songs.db` | `core/songs_db.py` | SQLite mit Song-Summaries. Track-ID = PK; bestehende Einträge werden bei jedem Wechsel überschrieben. Pfad ist fest verdrahtet (siehe `DB_PATH` im Modul). |
+| `data/tunebat_searches.db` | `tunebat/db.py` | SQLite mit rohen Tunebat-Treffern. Append-only. Pfad fest verdrahtet. |
+| `data/tunebat_searches/*.html` | `tunebat/browser/navigator.py` | Optionale Roh-HTML-Dumps. Toggle via `SAVE_TUNEBAT_HTML`. |
+
+### Extern (`BEATBASE_DB_PATH`)
 
 `BEATBASE_DB_PATH` (in `core/config.py`) zeigt auf eine **externe** SQLite-DB,
 die nicht zum Repo gehört. Wird nur verwendet, wenn `--track-id` an die

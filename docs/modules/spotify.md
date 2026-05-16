@@ -71,8 +71,8 @@ Das passende Setup im Spotify Developer Dashboard ist erforderlich.
 uv run python -m beatbase.spotify.spotify_current
 ```
 
-Schreibt das JSON (`{"song": ..., "artists": [...]}`) via `write_now_playing`
-in den IPC-Layer und gibt eine Statusmeldung zusätzlich auf stdout aus.
+Schreibt den aktuellen Song via `write_now_playing` in den IPC-Layer und gibt
+eine Statusmeldung zusätzlich auf stdout aus.
 
 Wenn nichts läuft:
 
@@ -81,6 +81,17 @@ Wenn nichts läuft:
 ```
 
 Und `clear_now_playing()` wird aufgerufen.
+
+> ⚠️ **IPC-Format:** Das Standalone-CLI baut den Suchstring im **Legacy-Format**
+> zusammen (`"<Title> von <Artist1>, <Artist2>"`) und ruft
+> `write_now_playing(full_string)` ohne separate `artists`-Liste auf. Im IPC
+> landet daher `{"song": "Title von Artists", "artists": []}`. Der Reader in
+> `utils/now_playing.py::read_now_playing_data()` enthält einen Fallback, der
+> das `" von "` wieder splittet — Konsumenten sehen also funktional die
+> richtigen Werte. Der Watcher dagegen ruft
+> `write_now_playing(song, artists)` mit getrennten Argumenten auf und schreibt
+> sauberes JSON. Wer auf strukturiertes JSON angewiesen ist, sollte den
+> Watcher als Schreiber nutzen.
 
 ## Fehlerquellen
 

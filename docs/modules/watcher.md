@@ -59,7 +59,12 @@ Schritte:
 4. **Einen** Playwright-Browser-Kontext öffnen.
 5. Pipeline durchlaufen — jeder aktivierte Extraktor bekommt denselben `page`.
 6. Browser schließen.
-7. `get_summary_json()` ausgeben und nach `data/json/{track_id}.json` archivieren.
+7. `get_summary_json()` ausgeben, nach `data/json/{track_id}.json` archivieren
+   **und** zusätzlich via `core/songs_db.py::save_song_summary` in die lokale
+   SQLite-DB `data/songs.db` schreiben (siehe
+   [Persistenz-Stellen](../architecture.md#persistenz-stellen)).
+   Beide Schritte sind in eigene try/except gekapselt — ein DB-Fehler bricht
+   das JSON-Archiv nicht ab und umgekehrt.
 
 ## Deklarative Pipeline: `EXTRACTORS`
 

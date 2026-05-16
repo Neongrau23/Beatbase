@@ -23,9 +23,8 @@ Konfiguration: [`configuration.md#watcher--ipc-coreconfigpy`](configuration.md#w
 
 ## Spotify
 
-Holt den aktuell spielenden Track und schreibt ihn als JSON
-(`{"song": "...", "artists": [...]}`) in `now_playing.txt` bzw. in die
-Env-Variable `NOW_PLAY`.
+Holt den aktuell spielenden Track und schreibt ihn in den IPC-Layer
+(`now_playing.txt` bzw. Env-Variable `NOW_PLAY`).
 
 ```powershell
 uv run python -m beatbase.spotify.spotify_current
@@ -42,6 +41,15 @@ Beim ersten Aufruf startet der OAuth-Flow im Browser. Der Token landet in
 
 **Wenn kein Track läuft**, wird der Sentinel `"nothing..."` in den IPC-Layer
 geschrieben.
+
+> ⚠️ **IPC-Format:** Im Gegensatz zum Watcher (der sauber strukturiertes JSON
+> `{"song": ..., "artists": [...]}` schreibt) schreibt das Standalone-CLI das
+> **Legacy-Format** als einen String — konkret landet
+> `{"song": "Blinding Lights von The Weeknd", "artists": []}` im IPC. Der
+> Reader in `utils/now_playing.py::read_now_playing_data()` fängt das ab und
+> splittet den String an `" von "` wieder zurück, sodass nachgelagerte
+> Extraktoren `song` und `artists` korrekt getrennt sehen. Wer auf das saubere
+> JSON-Format angewiesen ist, sollte den Watcher als Schreiber nutzen.
 
 ## Tunebat
 

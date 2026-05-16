@@ -150,9 +150,14 @@ Executable doesn't exist at ...\ms-playwright\chromium-...\chrome.exe
 
 - `core/config.py::IPC_MODE` ist nur `"file"` oder `"env"` erlaubt.
 
-## Datenbank (`--track-id`)
+## Datenbanken
 
-### `sqlite3.OperationalError: unable to open database file`
+Beatbase schreibt an drei lokale Pfade unter `data/` und optional in eine
+externe DB. Übersicht: [Konfiguration → Persistenz-Pfade](configuration.md#persistenz-pfade).
+
+### Externe DB (`--track-id`)
+
+#### `sqlite3.OperationalError: unable to open database file`
 
 - Der Pfad in `BEATBASE_DB_PATH` zeigt auf eine Datei, die nicht existiert,
   oder das übergeordnete Verzeichnis fehlt.
@@ -161,10 +166,24 @@ Executable doesn't exist at ...\ms-playwright\chromium-...\chrome.exe
   nicht nutzt, kannst du den Aufruf ignorieren.
 - Eigenen Pfad setzen: `$env:BEATBASE_DB_PATH = "D:/foo/spotify.db"`.
 
-### `sqlite3.OperationalError: no such table: tracks`
+#### `sqlite3.OperationalError: no such table: tracks`
 
 - Schema-Mismatch. Die Spalten und der Tabellenname sind in `core/db.py`
   hartkodiert. Bei Schema-Wechsel im übergeordneten System dort anpassen.
+
+### Lokale DBs (`data/songs.db`, `data/tunebat_searches.db`)
+
+- Beide werden beim ersten Schreibvorgang automatisch angelegt
+  (`mkdir(parents=True, exist_ok=True)`); das `data/`-Verzeichnis muss nicht
+  manuell vorhanden sein.
+- **Korrupte DB / Schema-Wechsel:** Die jeweilige Datei einfach löschen — wird
+  beim nächsten Lauf neu erzeugt. Bei `data/songs.db` gehen damit alle
+  archivierten Song-Summaries verloren; bei `data/tunebat_searches.db` die
+  Such-Historie. Wer das Archiv unter `data/json/` parallel führt (Default),
+  hat die Summaries noch als Einzelfiles.
+- **HTML-Dumps loswerden:** `SAVE_TUNEBAT_HTML = False` in `core/config.py`
+  setzen. Bestehende Dumps unter `data/tunebat_searches/` können dann manuell
+  gelöscht werden.
 
 ## Allgemein
 
