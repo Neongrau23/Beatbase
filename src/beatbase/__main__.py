@@ -21,11 +21,10 @@ import sys
 from pathlib import Path
 
 from beatbase.extractor.orchestrator import run_watcher
+from beatbase.extractor.search_queue import SOURCES as BATCH_SOURCES
 from beatbase.processor.importer import process_queue
 from beatbase.shared.config import PID_FILE_PATH as PID_FILE
 from beatbase.shared.utils.log import log_status
-
-BATCH_SOURCES = ("tunebat", "songstats", "genius", "songbpm")
 
 
 def stop_watcher():
