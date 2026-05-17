@@ -1,10 +1,10 @@
 # Genius-Extraktor
 
 Quellen:
-- `src/beatbase/genius/genius.py` — CLI + Public-Entry
-- `src/beatbase/genius/browser/context.py` — Playwright-Kontext mit persistentem Profil
-- `src/beatbase/genius/browser/navigator.py` — Suche & Profil-Auswahl
-- `src/beatbase/genius/scraper/extractor.py` — BeautifulSoup-Extraktion (Lyrics, Credits, Album)
+- `src/beatbase/extractor/genius/genius.py` — CLI + Public-Entry
+- `src/beatbase/extractor/genius/browser/context.py` — Playwright-Kontext mit persistentem Profil
+- `src/beatbase/extractor/genius/browser/navigator.py` — Suche & Profil-Auswahl
+- `src/beatbase/extractor/genius/scraper/extractor.py` — BeautifulSoup-Extraktion (Lyrics, Credits, Album)
 
 Browser-Scraper für [genius.com](https://genius.com). Liefert Lyrics
 sektionsweise, Credits, Album-Tracklist und die validierte Song-URL.
@@ -41,7 +41,7 @@ with sync_playwright() as p:
         context.close()
 ```
 
-Mit `page` läuft Genius auf dem Browser-Kontext des Watchers; ohne `page`
+Mit `page` läuft Genius auf dem Browser-Kontext des Orchestrators; ohne `page`
 öffnet `search_on_genius` selbst einen persistenten Kontext.
 
 ## Pipeline
@@ -57,7 +57,7 @@ search_on_genius(song, artists)
       │     │
       │     ├─ Sucht über Genius-Suchleiste / Artist-Profil
       │     ├─ Iteriert über Such-Variationen
-      │     ├─ Berechnet calculate_validation_score (utils/validator.py)
+      │     ├─ Berechnet calculate_validation_score (shared/utils/validator.py)
       │     └─ Bester Treffer (> MATCH_THRESHOLD) → Song-URL
       │
       ├─ load_song_page(page, url)

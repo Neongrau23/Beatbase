@@ -1,6 +1,6 @@
 # IPC-Layer
 
-Quelle: `src/beatbase/utils/now_playing.py`
+Quelle: `src/beatbase/shared/now_playing.py`
 
 Der IPC-Layer entkoppelt die Extraktoren vom Watcher. Damit Tunebat, Songstats,
 Genius und SongBPM auch standalone laufen können, brauchen sie einen Weg,
@@ -15,7 +15,7 @@ write_now_playing(song, artists)   # setzt IPC-Daten als JSON
 clear_now_playing()                # schreibt Sentinel "nothing..."
 ```
 
-Der IPC-Modus wird in `core/config.py::IPC_MODE` festgelegt:
+Der IPC-Modus wird in `shared/config.py::IPC_MODE` festgelegt:
 
 ```python
 IPC_MODE = "file"   # oder "env"

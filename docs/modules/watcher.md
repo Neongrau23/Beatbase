@@ -1,16 +1,16 @@
-# Watcher
+# Orchestrator
 
 Quelle: `src/beatbase/core/watcher.py`
 
-Der Watcher ist der zentrale Polling-Loop und Orchestrator. Er pollt Spotify,
+Der Orchestrator ist der zentrale Polling-Loop. Er pollt Spotify,
 erkennt Songwechsel und führt die deklarative Extraktor-Pipeline aus.
 
 ## Lifecycle
 
 ```
-run_watcher()
+run_orchestrator()
   │
-  ├─ log: "Watcher aktiv"
+  ├─ log: "Orchestrator aktiv"
   │
   └─ while True:
       ├─ track = get_current_spotify_track()
@@ -28,7 +28,7 @@ run_watcher()
 ## Pro Songwechsel: `_handle_new_track`
 
 ```python
-def _handle_new_track(track, headless=WATCHER_HEADLESS):
+def _handle_new_track(track, headless=ORCHESTRATOR_HEADLESS):
     bus.clear()
     _publish_now_playing(track)
     _push_spotify(track)
@@ -59,12 +59,9 @@ Schritte:
 4. **Einen** Playwright-Browser-Kontext öffnen.
 5. Pipeline durchlaufen — jeder aktivierte Extraktor bekommt denselben `page`.
 6. Browser schließen.
-7. `get_summary_json()` ausgeben, nach `data/json/{track_id}.json` archivieren
-   **und** zusätzlich via `core/songs_db.py::save_song_summary` in die lokale
-   SQLite-DB `data/songs.db` schreiben (siehe
-   [Persistenz-Stellen](../architecture.md#persistenz-stellen)).
-   Beide Schritte sind in eigene try/except gekapselt — ein DB-Fehler bricht
-   das JSON-Archiv nicht ab und umgekehrt.
+7. `get_summary_json()` ausgeben, via `extractor/queue.py` als JSON in `data/queue/` ablegen
+   und danach synchron `processor/importer.py` aufrufen, um die Daten in die
+   Datenbank zu übernehmen.
 
 ## Deklarative Pipeline: `EXTRACTORS`
 
@@ -73,7 +70,7 @@ Schritte:
 class ExtractorSpec:
     name: str                                # Hotline-Source-Key
     label: str                               # Anzeigename
-    enabled: bool                            # Aus core/config.py::ENABLE_*
+    enabled: bool                            # Aus shared/config.py::ENABLE_*
     search_fn: Callable[..., dict | None]    # search_on_<modul>
     store_under_data_key: bool = False       # Zusätzlich bus.set(name, "data", result)?
     direct_url_from: tuple[str, str] | None = None  # Cross-Hop-Quelle
@@ -96,7 +93,7 @@ Suche.
 
 Neuen Extraktor hinzufügen: `search_on_<modul>` implementieren, eine
 `ExtractorSpec` in die Liste eintragen, optional `ENABLE_*`-Toggle in
-`core/config.py` ergänzen. Sonst keine Änderung am Watcher nötig.
+`core/config.py` ergänzen. Sonst keine Änderung am Orchestrator nötig.
 
 ## Fehler-Isolation
 
@@ -138,7 +135,7 @@ gestarteten Kontext weiter. Das spart vier Cold-Starts pro Songwechsel.
 
 Standalone-CLI-Aufrufe (`python -m beatbase.tunebat.tunebat …`) öffnen
 weiterhin ihren eigenen persistenten Kontext via
-`browser/context.py::create_browser_context`.
+`extractor/tunebat/browser/context.py::create_browser_context`.
 
 ## Track-Identität
 
@@ -162,7 +159,7 @@ Liest die PID, schickt `SIGTERM` und räumt die PID-Datei auf.
 
 ## Konfiguration
 
-Siehe [Konfiguration → Watcher](../configuration.md#watcher--ipc-coreconfigpy).
+Siehe [Konfiguration → Orchestrator](../configuration.md#orchestrator--ipc-coreconfigpy).
 
 Die wichtigsten Hebel:
 

@@ -11,8 +11,8 @@ Extraktoren der Pipeline bei jedem Songwechsel.
 
 ```powershell
 uv run python -m beatbase                # Watcher starten
-uv run python -m beatbase --stop         # Laufenden Watcher beenden
-uv run python -m beatbase --headless     # Browser unsichtbar starten
+uv run python -m beatbase process --stop         # Laufenden Watcher beenden
+uv run python -m beatbase process --headless     # Browser unsichtbar starten
 ```
 
 Der Watcher schreibt eine **PID-Datei** (`.beatbase.pid`). Ein zweiter Start
@@ -27,7 +27,7 @@ Holt den aktuell spielenden Track und schreibt ihn in den IPC-Layer
 (`now_playing.txt` bzw. Env-Variable `NOW_PLAY`).
 
 ```powershell
-uv run python -m beatbase.spotify.spotify_current
+uv run python -m beatbase.extractor.spotify.spotify_current
 ```
 
 **Ausgabe (stdout):**
@@ -37,7 +37,7 @@ uv run python -m beatbase.spotify.spotify_current
 ```
 
 Beim ersten Aufruf startet der OAuth-Flow im Browser. Der Token landet in
-`src/beatbase/spotify/.spotify_cache`.
+`data/.spotify_cache`.
 
 **Wenn kein Track läuft**, wird der Sentinel `"nothing..."` in den IPC-Layer
 geschrieben.
@@ -46,7 +46,7 @@ geschrieben.
 > `{"song": ..., "artists": [...]}` schreibt) schreibt das Standalone-CLI das
 > **Legacy-Format** als einen String — konkret landet
 > `{"song": "Blinding Lights von The Weeknd", "artists": []}` im IPC. Der
-> Reader in `utils/now_playing.py::read_now_playing_data()` fängt das ab und
+> Reader in `shared/now_playing.py::read_now_playing_data()` fängt das ab und
 > splittet den String an `" von "` wieder zurück, sodass nachgelagerte
 > Extraktoren `song` und `artists` korrekt getrennt sehen. Wer auf das saubere
 > JSON-Format angewiesen ist, sollte den Watcher als Schreiber nutzen.
@@ -58,16 +58,16 @@ Songstats-Link. Gibt das Ergebnis als JSON auf stdout aus.
 
 ```powershell
 # Mit expliziten Argumenten
-uv run python -m beatbase.tunebat.tunebat `
+uv run python -m beatbase.extractor.tunebat.tunebat `
   --song "Blinding Lights" `
   --artist "The Weeknd" `
   [--headless]
 
 # Mit positionalem Query (Format "Titel von Artist")
-uv run python -m beatbase.tunebat.tunebat "Blinding Lights von The Weeknd"
+uv run python -m beatbase.extractor.tunebat.tunebat "Blinding Lights von The Weeknd"
 
 # Fallback: aktueller Song aus dem IPC-Layer
-uv run python -m beatbase.tunebat.tunebat
+uv run python -m beatbase.extractor.tunebat.tunebat
 ```
 
 ### Argumente
@@ -77,7 +77,7 @@ uv run python -m beatbase.tunebat.tunebat
 | `query` | string (positional) | IPC-Wert | Suchbegriff (Titel + Künstler). Erkennt `" von "`. |
 | `--song` | string | — | Expliziter Titel (Vorrang vor `query`). |
 | `--artist` | string (mehrfach) | `[]` | Künstler. Kann mehrfach angegeben werden. |
-| `--headless` | flag | aus `tunebat/config.py::HEADLESS` | Browser unsichtbar starten. |
+| `--headless` | flag | aus `beatbase/extractor/tunebat/config.py::HEADLESS` | Browser unsichtbar starten. |
 | `--no-headless` | flag | — | Browser sichtbar starten. |
 | `--dev` | flag | False | Browser nach Suche offen lassen (für manuelle Cloudflare-Lösung). |
 
@@ -87,7 +87,7 @@ Bei hartnäckiger Cloudflare-Bot-Detection kann das Tunebat-Profil mit
 menschlicher Aktivität "warmgelaufen" werden:
 
 ```powershell
-uv run python -m beatbase.tunebat.browser.warm_profile
+uv run python -m beatbase.extractor.tunebat.browser.warm_profile
 ```
 
 Das Skript öffnet sichtbar Google, YouTube und Tunebat, scrollt etwas und
@@ -101,13 +101,13 @@ Tempo, Time Signature).
 
 ```powershell
 # Mit expliziten Argumenten
-uv run python -m beatbase.songstats.songstats `
+uv run python -m beatbase.extractor.songstats.songstats `
   --song "Blinding Lights" `
   --artist "The Weeknd" `
   [--headless]
 
 # Fallback: aktueller Song aus dem IPC-Layer
-uv run python -m beatbase.songstats.songstats
+uv run python -m beatbase.extractor.songstats.songstats
 ```
 
 ### Argumente
@@ -144,13 +144,13 @@ Scrapet Lyrics, Credits, Album-Tracklist via Playwright + BeautifulSoup.
 
 ```powershell
 # Mit explizitem Suchbegriff
-uv run python -m beatbase.genius.genius "Blinding Lights The Weeknd" [--headless]
+uv run python -m beatbase.extractor.genius.genius "Blinding Lights The Weeknd" [--headless]
 
 # Über --song/--artist
-uv run python -m beatbase.genius.genius --song "Blinding Lights" --artist "The Weeknd"
+uv run python -m beatbase.extractor.genius.genius --song "Blinding Lights" --artist "The Weeknd"
 
 # Fallback: aktueller Song aus dem IPC-Layer
-uv run python -m beatbase.genius.genius
+uv run python -m beatbase.extractor.genius.genius
 ```
 
 ### Argumente
@@ -160,7 +160,7 @@ uv run python -m beatbase.genius.genius
 | `query` | string (positional, optional) | IPC-Wert | Suchbegriff (Titel + Künstler). Erkennt `" von "`. |
 | `--song` | string | — | Expliziter Titel. |
 | `--artist` | string (mehrfach) | `[]` | Expliziter Künstler. |
-| `--headless` | flag | aus `genius/config.py::HEADLESS` | Browser unsichtbar starten. |
+| `--headless` | flag | aus `beatbase/extractor/genius/config.py::HEADLESS` | Browser unsichtbar starten. |
 
 ### Output-Schema (gekürzt)
 
@@ -186,10 +186,10 @@ uv run python -m beatbase.genius.genius
 Scrapet die Vibe-Beschreibung des Tracks von [songbpm.com](https://songbpm.com).
 
 ```powershell
-uv run python -m beatbase.songbpm.songbpm "Blinding Lights The Weeknd"
+uv run python -m beatbase.extractor.songbpm.songbpm "Blinding Lights The Weeknd"
 
 # Fallback: aktueller Song aus dem IPC-Layer
-uv run python -m beatbase.songbpm.songbpm
+uv run python -m beatbase.extractor.songbpm.songbpm
 ```
 
 ### Argumente
@@ -212,7 +212,7 @@ uv run ruff check . --fix
 
 ```powershell
 uv run pytest                        # alle Tests
-uv run pytest tests/utils/           # nur ein Subtree
+uv run pytest tests/shared/utils/           # nur ein Subtree
 uv run pytest -k callcenter          # nach Namen filtern
 uv run pytest -m "not integration"   # Integration-Tests ausschliessen
 ```

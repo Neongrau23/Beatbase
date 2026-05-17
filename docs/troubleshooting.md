@@ -30,7 +30,7 @@ Bekannte Fehlerbilder und Lösungen.
   Connect-Geräten (Lautsprechern) kann es Aussetzer geben.
 - Prüfe manuell:
   ```powershell
-  uv run python -m beatbase.spotify.spotify_current
+  uv run python -m beatbase.extractor.spotify.spotify_current
   ```
 - Wenn das nichts liefert: `is_playing` ist `false` (z. B. pausierter Track)
   oder kein Token.
@@ -40,7 +40,7 @@ Bekannte Fehlerbilder und Lösungen.
 ### `⚠️ PID-Datei existiert bereits!`
 
 - Eine laufende Beatbase-Instanz ist bereits aktiv (PID in `.beatbase.pid`).
-- Beenden via `uv run python -m beatbase --stop` oder Task-Manager.
+- Beenden via `uv run python -m beatbase process --stop` oder Task-Manager.
 - Wenn die PID-Datei verwaist ist (Prozess existiert nicht mehr): `.beatbase.pid`
   manuell löschen.
 
@@ -70,7 +70,7 @@ Bekannte Fehlerbilder und Lösungen.
   auch headless möglich.
 - Alternative: das Profil-Warmup-Skript:
   ```powershell
-  uv run python -m beatbase.tunebat.browser.warm_profile
+  uv run python -m beatbase.extractor.tunebat.browser.warm_profile
   ```
   Browst sichtbar Google, YouTube, Tunebat mit menschlicher
   Scroll-/Klick-Aktivität.
@@ -80,7 +80,7 @@ Bekannte Fehlerbilder und Lösungen.
 - Die Top-5-Variationen haben keinen Treffer über `MATCH_THRESHOLD = 0.8`
   erbracht.
 - Optionen:
-  - Threshold in `tunebat/config.py` senken.
+  - Threshold in `beatbase/extractor/tunebat/config.py` senken.
   - Variations-Logik in `utils/search_variations.py` erweitern.
 
 ## Songstats
@@ -89,7 +89,7 @@ Bekannte Fehlerbilder und Lösungen.
 
 - Die `MATCH_THRESHOLD` von `0.7` hat keinen Treffer überschritten.
 - Möglichkeiten:
-  - Threshold in `src/beatbase/songstats/config.py` senken.
+  - Threshold in `src/beatbase/extractor/songstats/config.py` senken.
   - Variationen in `utils/search_variations.py` ergänzen.
   - Wenn Tunebat aktiv ist und einen `songstats_url` liefert, überspringt
     Songstats die eigene Suche — prüfe, ob Tunebat überhaupt einen Treffer

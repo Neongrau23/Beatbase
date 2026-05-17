@@ -122,7 +122,7 @@ Drei Wege:
 2. Aus einem anderen Terminal:
 
    ```powershell
-   uv run python -m beatbase --stop
+   uv run python -m beatbase process --stop
    ```
 
    Liest die PID aus `.beatbase.pid` und schickt `SIGTERM`.

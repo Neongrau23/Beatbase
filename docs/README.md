@@ -55,41 +55,29 @@ möglich, sie greifen über einen **IPC-Layer** auf den aktuell spielenden Song 
 
 ```
 src/beatbase/
-├── __main__.py              # Entry Point → Watcher mit PID-File-Singleton
-├── core/
-│   ├── config.py            # IPC, Polling, ENABLE_*-Toggles, BEATBASE_DB_PATH, SAVE_TUNEBAT_HTML
-│   ├── watcher.py           # Polling-Loop + deklarative EXTRACTORS-Pipeline
+├── __main__.py              # CLI: extract / process / batch / (default beides)
+├── extractor/               # 🏭 STANDORT 1: BESCHAFFUNG
+│   ├── orchestrator.py      # Watcher + deklarative EXTRACTORS-Pipeline
 │   ├── hotline.py           # Globaler Daten-Bus (Hotline)
-│   ├── songs_db.py          # Lokale SQLite (data/songs.db) — Song-Summaries pro Track
-│   └── db.py                # Schreibzugriff auf externe SQLite-DB (BEATBASE_DB_PATH)
-├── spotify/
-│   └── spotify_current.py   # Spotify-API-Extraktor
-├── tunebat/
-│   ├── tunebat.py           # CLI + search_on_tunebat()
-│   ├── config.py            # Tunebat-Konstanten
-│   ├── db.py                # Lokale SQLite (data/tunebat_searches.db) — rohe Suchergebnisse
-│   ├── browser/             # Playwright + Stealth, Navigation, Profile-Warmup
-│   └── scraper/             # Datenextraktion von der Song-Seite + Resultat-Parser
-├── songstats/
-│   ├── songstats.py         # CLI + search_on_songstats()
-│   ├── config.py            # Songstats-Konstanten
-│   ├── browser/             # Playwright-Kontext, Navigation
-│   └── scraper/             # Overview-Extraktion + Coordinator
-├── genius/
-│   ├── genius.py            # CLI + search_on_genius()
-│   ├── config.py            # Genius-Konstanten
-│   ├── browser/             # Playwright-Kontext, Navigation
-│   └── scraper/             # BeautifulSoup-Extraktion (Lyrics, Credits)
-├── songbpm/
-│   ├── songbpm.py           # CLI + search_on_songbpm()
-│   └── scraper/             # Vibe-Beschreibung
-└── utils/
-    ├── callcenter.py        # Daten-Aggregation mit deklarativem Schema
+│   ├── callcenter.py        # Daten-Aggregation mit deklarativem Schema
+│   ├── queue.py             # write_to_queue() Helper
+│   ├── spotify/             # Spotify-API-Extraktor
+│   ├── tunebat/             # Playwright + Stealth
+│   ├── songstats/           # Playwright + BS4, Overview-Extraktion
+│   ├── genius/              # Playwright + BS4, Lyrics & Credits
+│   └── songbpm/             # Playwright + BS4, Vibe-Beschreibung
+├── processor/               # 🏢 STANDORT 2: VERARBEITUNG
+│   ├── importer.py          # process_queue() liest data/queue/ → DBs
+│   ├── songs_db.py          # Lokale SQLite (data/songs.db)
+│   └── external_db.py       # Schreibzugriff auf externe SQLite-DB (BEATBASE_DB_PATH)
+└── shared/                  # 🚚 LOGISTIK
+    ├── config.py            # Pfade, IPC, Polling, ENABLE_*-Toggles
     ├── now_playing.py       # IPC-Layer (file oder env)
-    ├── log.py               # Stderr-Logger
-    ├── cookie_manager.py    # Zentrales Cookie-Banner-Handling
-    ├── validator.py         # Zentrales Fuzzy-Match-Scoring
-    └── search_variations.py # Generierung von Suchbegriff-Variationen
+    └── utils/
+        ├── log.py               # Stderr-Logger
+        ├── validator.py         # Zentrales Fuzzy-Match-Scoring
+        ├── search_variations.py # Generierung von Suchbegriff-Variationen
+        └── cookie_manager.py    # Zentrales Cookie-Banner-Handling
 ```
 
 ## Persistenz-Stellen (drei lokale DBs/Pfade + eine externe)

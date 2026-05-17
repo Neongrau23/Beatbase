@@ -1,13 +1,13 @@
 # Tunebat-Extraktor
 
 Quellen:
-- `src/beatbase/tunebat/tunebat.py` — CLI + Orchestrator
-- `src/beatbase/tunebat/browser/context.py` — Playwright-Kontext mit Stealth
-- `src/beatbase/tunebat/browser/navigator.py` — Suche, Pagination, Resultat-Auswahl, HTML-Dump + DB-Write
-- `src/beatbase/tunebat/browser/warm_profile.py` — Profil-Warmup gegen Bot-Detection
-- `src/beatbase/tunebat/scraper/extractor.py` — Datenextraktion von der Song-Seite
-- `src/beatbase/tunebat/scraper/results_parser.py` — BeautifulSoup-Parser für Suchtreffer (Roh-HTML → Dicts)
-- `src/beatbase/tunebat/db.py` — SQLite-Persistierung der Suchtreffer
+- `src/beatbase/extractor/tunebat/tunebat.py` — CLI + Orchestrator
+- `src/beatbase/extractor/tunebat/browser/context.py` — Playwright-Kontext mit Stealth
+- `src/beatbase/extractor/tunebat/browser/navigator.py` — Suche, Pagination, Resultat-Auswahl, HTML-Dump + DB-Write
+- `src/beatbase/extractor/tunebat/browser/warm_profile.py` — Profil-Warmup gegen Bot-Detection
+- `src/beatbase/extractor/tunebat/scraper/extractor.py` — Datenextraktion von der Song-Seite
+- `src/beatbase/extractor/tunebat/scraper/results_parser.py` — BeautifulSoup-Parser für Suchtreffer (Roh-HTML → Dicts)
+- `src/beatbase/extractor/tunebat/db.py` — SQLite-Persistierung der Suchtreffer
 
 Browser-Scraper für [tunebat.com](https://tunebat.com). Liefert BPM, Key,
 Camelot, Duration, Popularity, Audio-Features (Energy, Danceability, …),
@@ -62,7 +62,7 @@ search_on_tunebat(song, artists)
       │     └─ find_best_result(page, target_string, artists)
       │           │
       │           ├─ Pagination via "Load more" (bis 4 Klicks)
-      │           ├─ Scoring (utils/validator.py)
+      │           ├─ Scoring (shared/utils/validator.py)
       │           └─ Bester Treffer (> MATCH_THRESHOLD = 0.8)
       │
       └─ Auf der Song-Seite:
@@ -112,7 +112,7 @@ Wenn Cloudflare trotz Stealth zuschnappt, kann das Profil mit menschlicher
 Browser-Aktivität "warmgelaufen" werden:
 
 ```powershell
-uv run python -m beatbase.tunebat.browser.warm_profile
+uv run python -m beatbase.extractor.tunebat.browser.warm_profile
 ```
 
 Das Skript öffnet sichtbar Google, YouTube und Tunebat, scrollt jeweils zwei-
@@ -141,7 +141,7 @@ unterschiedlich:
 
 Tunebat sucht auf der Song-Seite nach `a[aria-label='Songstats']` und
 extrahiert dessen `href` (mit `?source=overview` als Query-Param, damit
-Songstats nicht auf Spotify weiterleitet). Der Watcher legt diesen Wert als
+Songstats nicht auf Spotify weiterleitet). Der Orchestrator legt diesen Wert als
 `bus.set("tunebat", "songstats_url", …)` ab; der nächste Extraktor in der
 Pipeline (Songstats) bekommt ihn als `direct_url` durchgereicht und
 überspringt seine eigene Suche.
@@ -154,7 +154,7 @@ Suche zwei lokale Artefakte:
 - **`data/tunebat_searches.db`** — SQLite mit allen geparsten Treffern aus dem
   Suchergebnis-Container. Eine Zeile pro Treffer, append-only (mit
   `searched_at`-Zeitstempel). Geschrieben in `browser/navigator.py` über
-  `tunebat/db.py::save_search_results`. Der Parser
+  `extractor/tunebat/db.py::save_search_results`. Der Parser
   (`scraper/results_parser.py`) liest aus dem `.hl7iF`-Container Titel,
   Artists, Key, BPM, Camelot, Popularity, Spotify- und Songstats-Links.
   Nützlich, um historische Treffer für Analysezwecke nachzuhalten — der Watcher

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from beatbase.core.hotline import bus
+from beatbase.extractor.hotline import bus
 
 
 @pytest.fixture(autouse=True)

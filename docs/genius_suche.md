@@ -23,7 +23,7 @@ Der Ablauf ist in vier Hauptphasen unterteilt:
   Künstler genannt sind (`feat. X`, `ft. Y`, `with Z`, `von …`).
 - **Ziel-String**: Ein `target_string` aus Titel und allen Künstlern für den
   späteren Abgleich.
-- **Such-Variationen**: `generate_variations` (`utils/search_variations.py`)
+- **Such-Variationen**: `generate_variations` (`shared/utils/search_variations.py`)
   erzeugt verschiedene Kombinationen aus Titel und Künstlern, um die
   Trefferwahrscheinlichkeit zu erhöhen.
 
@@ -51,7 +51,7 @@ Das Skript nutzt **Playwright** mit einem persistenten Chromium-Profil:
    Künstler identifiziert; dann der Song in dessen Liste gesucht.
 3. **Fallback**: Wenn keine Artist-Card passt, wird die erste `mini_card`
    überhaupt als Fallback genutzt.
-4. **Scoring** (`utils/validator.py::calculate_validation_score`):
+4. **Scoring** (`shared/utils/validator.py::calculate_validation_score`):
    - Basis-Ähnlichkeit über `difflib.SequenceMatcher`.
    - **+0.2** für jeden korrekt gefundenen Künstler.
    - **+0.1** für "Remix" oder "Edit", um Originale gegenüber Covern zu

@@ -15,88 +15,107 @@ Das Projekt wird mit `uv` verwaltet (kein `pip`, kein manuelles `venv`).
 uv sync
 uv run playwright install chromium
 
-# Watcher (Orchestrator) – pollt Spotify und triggert alle Extraktoren bei Songwechsel
-uv run python -m beatbase                # Startet den Watcher (Singleton via .beatbase.pid)
+# Watcher + Importer (Default-Modus): pollt Spotify, scrapet, schreibt in Queue
+# und ruft den Importer synchron auf.
+uv run python -m beatbase                # Watcher + Importer (Singleton via .beatbase.pid)
 uv run python -m beatbase --stop         # Beendet einen laufenden Watcher
 uv run python -m beatbase --headless     # Watcher ohne sichtbares Browser-Fenster
 
+# Standorte einzeln starten
+uv run python -m beatbase extract        # Nur Spotify-Watcher (schreibt in Queue)
+uv run python -m beatbase process        # Nur Importer (Queue → DBs, einmaliger Lauf)
+
 # Einzelne Extraktoren (alle fallen auf den IPC-Layer zurück, wenn keine Args)
-uv run python -m beatbase.spotify.spotify_current
-uv run python -m beatbase.songstats.songstats --song "Titel" --artist "Name" [--headless] [--track-id ID]
-uv run python -m beatbase.genius.genius "Interpret Titel" [--headless]
-uv run python -m beatbase.tunebat.tunebat --song "Titel" --artist "Name" [--headless] [--dev]
-uv run python -m beatbase.songbpm.songbpm "Titel"
+uv run python -m beatbase.extractor.spotify.spotify_current
+uv run python -m beatbase.extractor.songstats.songstats --song "Titel" --artist "Name" [--headless]
+uv run python -m beatbase.extractor.genius.genius "Interpret Titel" [--headless]
+uv run python -m beatbase.extractor.tunebat.tunebat --song "Titel" --artist "Name" [--headless] [--dev]
+uv run python -m beatbase.extractor.songbpm.songbpm "Titel"
 
 # Tunebat-Profil "warmlaufen" lassen (manuelle Aktivität gegen Bot-Detection)
-uv run python -m beatbase.tunebat.browser.warm_profile
+uv run python -m beatbase.extractor.tunebat.browser.warm_profile
 
 # Lint
 uv run ruff check .
 uv run ruff check . --fix
 
 # Tests
-uv run pytest                        # alle Tests (~0.4s)
-uv run pytest tests/utils/           # nur ein Subtree
+uv run pytest                        # alle Tests (~1s)
+uv run pytest tests/shared/          # nur ein Subtree
 uv run pytest -k callcenter          # nach Namen filtern
 uv run pytest -m "not integration"   # Integration-Tests ausschliessen
 ```
 
-Pytest-Konfig in `pyproject.toml` (`[tool.pytest.ini_options]`, `--import-mode=importlib`). Struktur in `tests/` spiegelt `src/`; HTML-Fixtures unter `tests/fixtures/<modul>/`. Globaler Bus wird per autouse-Fixture in `tests/conftest.py` vor jedem Test gecleart. Marker `integration` für Netz-/Browser-Tests (aktuell nicht benutzt).
-
-`--track-id` bei Songstats schreibt Audio-Features via `core/db.py::update_audio_features` direkt in eine **externe** SQLite-DB. Pfad steht in `BEATBASE_DB_PATH` (Default `C:/workspace/beatbase/spotify.db`, via Env-Var überschreibbar). Die DB gehört zu einem übergeordneten System, nicht zum Repo.
+Pytest-Konfig in `pyproject.toml` (`[tool.pytest.ini_options]`, `--import-mode=importlib`). Struktur in `tests/` spiegelt `src/` (`tests/extractor/`, `tests/processor/`, `tests/shared/`); HTML-Fixtures unter `tests/fixtures/<modul>/`. Globaler Bus wird per autouse-Fixture in `tests/conftest.py` vor jedem Test gecleart. Marker `integration` für Netz-/Browser-Tests (aktuell nicht benutzt).
 
 ## Architektur
 
-### Hotline / Callcenter-Muster
-Zweistufiger Datenfluss, der Extraktoren von der finalen Datenstruktur entkoppelt:
+Das Paket ist in drei **Standorte** geteilt — jeder Standort hat seine eigene Verantwortlichkeit, die Naht dazwischen ist die JSON-Queue.
 
-- **Hotline** (`core/hotline.py`): Globaler Key-Value-Speicher `bus` (Singleton). Extraktoren legen Rohdaten unter ihrem Quellennamen ab (`bus.set("songstats", key, value)`). Keine Logik, kein Schema.
-- **Callcenter** (`utils/callcenter.py`): Liest aus `bus.get_all()` und baut die strukturierte Master-View (`build_song_summary()`). Hier liegt die Priorisierungslogik — z. B. nimmt `release_date` bevorzugt aus Tunebat, dann Spotify, dann Songstats; mit `_determine_release_date()` als letztem Fallback (ältestes Datum aller Quellen).
+### Standort 1: `extractor/` (Beschaffung)
+Alles, was Daten von externen Quellen einsammelt und zu einer fertigen Master-View aggregiert.
 
-Ein neuer Extraktor muss nur `bus.set(quelle, key, value)` aufrufen — die Aggregation passiert im Callcenter. Das Callcenter gibt ein **festes Schema** mit den Blöcken `meta`, `music_theory`, `audio_features`, `analysis`, `lyrics`, `album_tracklist`, `credits`, `links` aus. Neue Felder dort eintragen.
+- `extractor/orchestrator.py` (ehemals `core/watcher.py`) — zentraler Polling-Loop. Pollt Spotify in `POLLING_INTERVAL` (Default 10s), erkennt Songwechsel über die Spotify-Track-ID. Die Pipeline ist als **deklarative `EXTRACTORS`-Liste** (`list[ExtractorSpec]`) definiert.
+- `extractor/hotline.py` — interner Key-Value-Bus (`bus`-Singleton). Extraktoren legen Rohdaten unter ihrem Quellennamen ab (`bus.set("songstats", key, value)`). Keine Logik, kein Schema.
+- `extractor/callcenter.py` — schema-getriebene Aggregation. Liest aus `bus.get_all()` und baut die strukturierte Master-View (`build_song_summary()`). Hier liegt die Priorisierungslogik — z. B. nimmt `release_date` bevorzugt aus Tunebat, dann Spotify, dann Songstats; mit `_determine_release_date()` als letztem Fallback (ältestes Datum aller Quellen).
+- `extractor/queue.py` — `write_to_queue(track_id, summary)` legt das fertige JSON in `data/queue/` ab. Das ist die einzige Schnittstelle zu Standort 2.
+- `extractor/{spotify,tunebat,songstats,genius,songbpm}/` — die einzelnen Quellen-Scraper.
 
-### Watcher-Loop (`core/watcher.py`)
-Zentraler Polling-Loop. Pollt Spotify in `POLLING_INTERVAL` (Default 10s), erkennt Songwechsel über die Spotify-Track-ID. Die Pipeline ist als **deklarative `EXTRACTORS`-Liste** (`list[ExtractorSpec]`) definiert — neue Quellen werden durch Anhängen eines `ExtractorSpec` integriert, nicht durch If-Kaskaden.
-
-Pro Songwechsel:
-
+**Watcher-Loop pro Songwechsel:**
 1. `bus.clear()` (Hotline-Reset)
 2. IPC-Layer aktualisieren (`write_now_playing`)
 3. Spotify-Rohdaten in Hotline pushen
 4. **Ein gemeinsamer Playwright-Browser-Kontext** wird geöffnet und an alle Extraktoren weitergereicht
 5. Reihenfolge: Tunebat → Songstats → Genius → SongBPM. Jeder Schritt in eigenem try/except — Fehler eines Extraktors stoppen den Watcher nicht
 6. **Cross-Extractor-Optimierung** über `ExtractorSpec.direct_url_from`: Tunebat findet einen `songstats_url`-Direktlink und legt ihn in der Hotline ab. Der Songstats-Spec deklariert `direct_url_from=("tunebat", "songstats_url")`; der Watcher reicht den Wert als `direct_url`-Kwarg durch, Songstats überspringt damit seine eigene Suche
-7. `get_summary_json()` ausgeben, nach `JSON_EXPORT_DIR/{track_id}.json` archivieren **und** zusätzlich via `core/songs_db.py::save_song_summary` in die lokale SQLite-DB `data/songs.db` schreiben (eine flache Tabelle mit Track-ID als Primary Key)
+7. `get_summary_json()` ausgeben → `write_to_queue(track_id, summary)` → `process_queue()` synchron aufrufen
 8. Browser-Kontext schließen
 
-**Wichtig:** Der Watcher steuert den Browser-Lifecycle zentral. Die `search_on_*`-Funktionen akzeptieren ein optionales `page`-Argument; wird es gesetzt, verwalten sie keinen eigenen Browser. Standalone-CLI-Aufrufe öffnen weiterhin ihren eigenen Kontext über das jeweilige `browser/context.py`.
+**Wichtig:** Der Orchestrator steuert den Browser-Lifecycle zentral. Die `search_on_*`-Funktionen akzeptieren ein optionales `page`-Argument; wird es gesetzt, verwalten sie keinen eigenen Browser. Standalone-CLI-Aufrufe öffnen weiterhin ihren eigenen Kontext über das jeweilige `browser/context.py`.
 
-Welche Extraktoren laufen, wird in `core/config.py` per Toggle gesteuert (`ENABLE_GENIUS`, `ENABLE_SONGSTATS`, `ENABLE_TUNEBAT`, `ENABLE_SONGBPM`).
+### Lager: `data/queue/`
+Ein Verzeichnis voller fertiger Song-JSONs (`{track_id}.json`). Die einzige Schnittstelle zwischen Standort 1 und 2. Wenn der Processor offline ist, stauen sich JSONs hier auf, bis er wieder läuft. Erfolgreich importierte JSONs wandern in `data/json/`.
 
-Der Watcher schreibt eine **PID-Datei** (`.beatbase.pid`) zum Singleton-Schutz und um `--stop` zu ermöglichen.
+### Standort 2: `processor/` (Verarbeitung)
+Alles, was fertige JSONs in Datenbanken überführt.
 
-### Persistenz-Stellen (drei verschiedene DBs/Pfade — nicht verwechseln!)
-- **`data/json/{track_id}.json`** — JSON-Archiv pro Song, Default-Output des Watchers.
-- **`data/songs.db`** (`core/songs_db.py`) — lokale SQLite, vom Watcher pro Song befüllt. Flache Tabelle mit allen Summary-Feldern (Lyrics/Tracklist/Credits als JSON-Strings).
-- **`data/tunebat_searches.db`** (`tunebat/db.py`) — lokale SQLite mit rohen Tunebat-Suchergebnissen (eine Zeile pro Treffer, mit `searched_at`). Append-only.
-- **`BEATBASE_DB_PATH`** (Default `C:/workspace/beatbase/spotify.db`) — **externe** DB für `core/db.py::update_audio_features`, nur über den `--track-id`-Workflow geschrieben. Gehört zu einem übergeordneten System.
+- `processor/importer.py` — `process_queue()` arbeitet alle JSONs in `data/queue/` ab. Pro File: Summary lesen, `save_song_summary` (lokale DB), bei vorhandenen Audio-Features `update_audio_features` (externe DB), dann nach `data/json/` archivieren. Fehler isolieren pro File.
+- `processor/songs_db.py` — `save_song_summary(track_id, summary)` schreibt in `data/songs.db` (lokale flache SQLite, eine Zeile pro Track).
+- `processor/external_db.py` (ehemals `core/db.py`) — `update_audio_features(track_id, features)` schreibt in die **externe** Beatbase-DB (`BEATBASE_DB_PATH`). Erwartet das Summary-Format mit Kleinbuchstaben-Keys; `happiness` wird auf die `valence`-Spalte gemappt.
 
-### IPC-Layer (`utils/now_playing.py`)
-Entkoppelt Extraktoren, die standalone laufen können. Modus in `core/config.py::IPC_MODE`:
+Der Processor wird vom Orchestrator nach jedem Song synchron getriggert, kann aber auch standalone mit `python -m beatbase process` laufen — etwa wenn die Queue sich nach einem DB-Ausfall angestaut hat.
+
+### Logistik: `shared/`
+Alles, was beide Standorte brauchen.
+
+- `shared/config.py` — Watcher-, IPC- und Pfad-Defaults. **Alle hartcodierten Pfade** (`DATA_DIR`, `QUEUE_DIR`, `SONGS_DB_PATH`, `TUNEBAT_SEARCHES_DB_PATH`, `SPOTIFY_CACHE_PATH`, `PID_FILE_PATH` etc.) leben hier und sind über `BEATBASE_DATA_DIR` / `BEATBASE_DB_PATH` per Env-Var überschreibbar.
+- `shared/now_playing.py` — IPC-Layer (`now_playing.txt` oder Windows-Env, je nach `IPC_MODE`).
+- `shared/utils/log.py`, `validator.py`, `search_variations.py`, `cookie_manager.py` — Hilfsfunktionen, die mehrere Module brauchen.
+
+### Persistenz-Stellen
+- **`data/queue/{track_id}.json`** — frisch gescrapete Summaries, die auf den Import warten. Naht zwischen Standort 1 und 2.
+- **`data/json/{track_id}.json`** — Archiv erfolgreich importierter Summaries.
+- **`data/songs.db`** (`processor/songs_db.py`) — lokale SQLite mit allen Summary-Feldern (Lyrics/Tracklist/Credits als JSON-Strings).
+- **`data/tunebat_searches.db`** (`extractor/tunebat/db.py`) — Append-only-Log roher Tunebat-Suchergebnisse. Bleibt bewusst bei Tunebat (nicht im Processor), weil es Scraper-internes Audit-Log ist.
+- **`data/.spotify_cache`** — OAuth-Token-Cache von spotipy. Wird beim ersten Auth-Flow angelegt.
+- **`BEATBASE_DB_PATH`** (Default `C:/workspace/beatbase/spotify.db`) — externe DB, vom Importer befüllt, wenn Audio-Features im Summary stehen. Gehört zu einem übergeordneten System.
+
+### IPC-Layer (`shared/now_playing.py`)
+Entkoppelt Extraktoren, die standalone laufen können. Modus in `shared/config.py::IPC_MODE`:
 
 - `"file"` (Default): `now_playing.txt` im CWD, **atomar geschrieben** (temp + `os.replace`) gegen Partial-Reads.
 - `"env"`: Windows-User-Env `NOW_PLAY`, gelesen/geschrieben über PowerShell-Subprozesse.
 
-Sentinel `"nothing..."` (`SENTINEL_NONE`) bedeutet "kein Track aktiv". Format des Songstrings: `"<Title> von <Artist1>, <Artist2>"`. Standalone-Extraktoren nutzen ihn als Suchbegriff-Fallback, wenn keine CLI-Args mitgegeben werden.
+Sentinel `"nothing..."` (`SENTINEL_NONE`) bedeutet "kein Track aktiv". Standalone-Extraktoren nutzen ihn als Suchbegriff-Fallback, wenn keine CLI-Args mitgegeben werden.
 
 ### Extraktor-Typen
 Alle Browser-Extraktoren nutzen **Playwright Chromium** mit persistenten Profilen unter `.profiles/`. Die Profile-Verzeichnisse werden beim ersten Start angelegt, sind in `.gitignore` und **dürfen nicht gelöscht werden** (Cookies, Login-State, Anti-Bot-Reputation).
 
-- **Spotify** (`spotify/`): Reine HTTP-Requests via `spotipy`, OAuth-Token in `.spotify_cache` neben dem Modul.
-- **Songstats** (`songstats/`): Playwright + BeautifulSoup. Extrahiert Highcharts-SVG-Daten via Mausbewegungen auf Koordinaten, da die SVGs keine semantischen Klassen haben. Fokus liegt aktuell auf der `Overview`-Sektion (`scraper/overview.py`).
-- **Genius** (`genius/`): **Playwright** (nicht mehr Selenium) + BeautifulSoup. Extrahiert Lyrics, Album-Tracklist und Credits.
-- **Tunebat** (`tunebat/`): Playwright + **`playwright-stealth`** für Bot-Detection-Umgehung. Liefert BPM, Key, Camelot, Audio-Features. Findet zusätzlich Direktlinks zu Songstats und legt sie für den nächsten Extraktor ab. Bei hartnäckiger Bot-Detection: `python -m beatbase.tunebat.browser.warm_profile` ausführen, um das Profil mit Klick- und Scroll-Aktivität anzureichern.
-- **SongBPM** (`songbpm/`): Playwright + BeautifulSoup. Liefert die "Vibe"-Beschreibung des Tracks.
+- **Spotify** (`extractor/spotify/`): Reine HTTP-Requests via `spotipy`, OAuth-Token in `data/.spotify_cache`.
+- **Songstats** (`extractor/songstats/`): Playwright + BeautifulSoup. Extrahiert Highcharts-SVG-Daten via Mausbewegungen auf Koordinaten, da die SVGs keine semantischen Klassen haben. Fokus liegt aktuell auf der `Overview`-Sektion (`scraper/overview.py`).
+- **Genius** (`extractor/genius/`): **Playwright** (nicht mehr Selenium) + BeautifulSoup. Extrahiert Lyrics, Album-Tracklist und Credits.
+- **Tunebat** (`extractor/tunebat/`): Playwright + **`playwright-stealth`** für Bot-Detection-Umgehung. Liefert BPM, Key, Camelot, Audio-Features. Findet zusätzlich Direktlinks zu Songstats und legt sie für den nächsten Extraktor ab. Bei hartnäckiger Bot-Detection: `python -m beatbase.extractor.tunebat.browser.warm_profile` ausführen, um das Profil mit Klick- und Scroll-Aktivität anzureichern.
+- **SongBPM** (`extractor/songbpm/`): Playwright + BeautifulSoup. Liefert die "Vibe"-Beschreibung des Tracks.
 
 Jeder Browser-Extraktor folgt dem Submodul-Pattern:
 - `browser/context.py` — Playwright-Kontext-Setup mit persistentem Profil
@@ -105,17 +124,17 @@ Jeder Browser-Extraktor folgt dem Submodul-Pattern:
 - `<modul>.py` — `search_on_<modul>()`-Orchestrator + CLI-Einsprung
 
 ### Gemeinsame Utilities
-- `utils/search_variations.py::generate_variations()`: Generische Variations-Generierung (Reihenfolge, Klammern, Featured-Artists, Remix/Edit-Tags, Unicode-Normalisierung). Wird von Songstats, Genius und Tunebat verwendet.
-- `utils/search_variations.py::extract_featured_artists()`: Zieht versteckte Künstler aus dem Titel (`feat.`, `ft.`, `with`, `von`).
-- `utils/cookie_manager.py::wait_for_and_dismiss_cookies()`: Zentrales Cookie-Banner-Handling für alle Browser-Extraktoren (OneTrust, deutsche/englische Buttons).
-- `utils/validator.py::calculate_validation_score()`: Zentrales Fuzzy-Matching-Scoring (`difflib` + Artist-Bonus + Remix-Bonus) für Suchergebnisbewertung.
-- `utils/log.py::log_status()`: Schreibt nach **stderr**. Stdout bleibt frei für die strukturierten JSON-Ausgaben der CLIs — wichtig, wenn die CLIs gepiped werden. Nutze `log_status()`, kein `print()`, für Statusmeldungen.
+- `shared/utils/search_variations.py::generate_variations()`: Generische Variations-Generierung (Reihenfolge, Klammern, Featured-Artists, Remix/Edit-Tags, Unicode-Normalisierung). Wird von Songstats, Genius und Tunebat verwendet.
+- `shared/utils/search_variations.py::extract_featured_artists()`: Zieht versteckte Künstler aus dem Titel (`feat.`, `ft.`, `with`, `von`).
+- `shared/utils/cookie_manager.py::wait_for_and_dismiss_cookies()`: Zentrales Cookie-Banner-Handling für alle Browser-Extraktoren (OneTrust, deutsche/englische Buttons).
+- `shared/utils/validator.py::calculate_validation_score()`: Zentrales Fuzzy-Matching-Scoring (`difflib` + Artist-Bonus + Remix-Bonus) für Suchergebnisbewertung.
+- `shared/utils/log.py::log_status()`: Schreibt nach **stderr**. Stdout bleibt frei für die strukturierten JSON-Ausgaben der CLIs — wichtig, wenn die CLIs gepiped werden. Nutze `log_status()`, kein `print()`, für Statusmeldungen.
 
 ## Code-Konventionen
 
 - **`# DEF: Kurztext`** (max ~40 Zeichen) markiert wichtige Funktionen/Sektionen und erscheint in der VSCode-Minimap. Auch `# SECTION:`, `# ENTRY:`, `# CONFIG:`, `# BRIDGE:`, `# STATE:`, `# WHY:`, `# HELP:`, `# MARK:` werden im Codebase verwendet.
 - Type Hints überall. Google-Style-Docstrings. f-Strings. `pathlib.Path` (wo möglich — der Bestandscode nutzt teils `os.path`).
-- Spezifische Exceptions fangen, kein nacktes `except:`. **Ausnahme:** `_run_extractor` in `core/watcher.py` — dort ist `except Exception` bewusst breit, damit ein Scraper-Crash die Pipeline nicht killt.
+- Spezifische Exceptions fangen, kein nacktes `except:`. **Ausnahme:** `_run_extractor` in `extractor/orchestrator.py` — dort ist `except Exception` bewusst breit, damit ein Scraper-Crash die Pipeline nicht killt. Ebenso im `processor/importer.py` pro File, damit ein kaputtes JSON nicht den ganzen Importer-Lauf stoppt.
 - `search_on_*`-Funktionen liefern **`dict | None`** — `None` bei Fehler oder leerem Ergebnis. Keine `{}`-Sentinels.
 - Zeilenlänge 100, `target-version = "py311"`, Linter ist Ruff (`select = ["E", "F", "I"]`).
 - Commit-Konvention: `type(scope): kurze beschreibung` auf Deutsch. Aufbau:
@@ -135,11 +154,12 @@ Jeder Browser-Extraktor folgt dem Submodul-Pattern:
   ```
 
   Erlaubte Typen: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`.
-  Scope ist der Modulname (z. B. `tunebat`, `core`, `utils`) oder leer.
+  Scope ist der Modulname (z. B. `tunebat`, `extractor`, `processor`, `shared`) oder leer.
 
 ## Konfiguration
 
 - `.env` im Projektroot: `SPOTIPY_CLIENT_ID`, `SPOTIPY_CLIENT_SECRET`, optional `SPOTIPY_REDIRECT_URI`.
-- `src/beatbase/core/config.py`: Watcher- und IPC-Defaults (`POLLING_INTERVAL`, `IPC_MODE`, `WATCHER_HEADLESS`, `SENTINEL_NONE`, `ENABLE_*`-Toggles, `JSON_EXPORT_DIR`, `SAVE_TUNEBAT_HTML`, Quellen-URLs).
-- `src/beatbase/{songstats,genius,tunebat}/config.py`: Quellen-spezifische Konstanten (`MATCH_THRESHOLD`, `PROFILE_DIR`, `USER_AGENT`, Timeouts, Headless-Default).
-- `BEATBASE_DB_PATH` (Env-Var oder `core/config.py`-Default) → externer SQLite-Pfad für den `--track-id`-Workflow. Default `C:/workspace/beatbase/spotify.db`.
+- `src/beatbase/shared/config.py`: Watcher-, IPC- und alle Pfad-Defaults (`POLLING_INTERVAL`, `IPC_MODE`, `WATCHER_HEADLESS`, `SENTINEL_NONE`, `ENABLE_*`-Toggles, `DATA_DIR`, `QUEUE_DIR`, `JSON_EXPORT_DIR`, `SONGS_DB_PATH`, `TUNEBAT_SEARCHES_DB_PATH`, `TUNEBAT_SEARCHES_HTML_DIR`, `SPOTIFY_CACHE_PATH`, `PID_FILE_PATH`, `SAVE_TUNEBAT_HTML`, Quellen-URLs).
+- `src/beatbase/extractor/{songstats,genius,tunebat}/config.py`: Quellen-spezifische Konstanten (`MATCH_THRESHOLD`, `PROFILE_DIR`, `USER_AGENT`, Timeouts, Headless-Default).
+- `BEATBASE_DATA_DIR` (Env-Var) → überschreibt den `data/`-Pfad für die Queue, JSON-Archive und lokalen DBs.
+- `BEATBASE_DB_PATH` (Env-Var oder `shared/config.py`-Default) → externer SQLite-Pfad für `processor/external_db.py`. Default `C:/workspace/beatbase/spotify.db`.

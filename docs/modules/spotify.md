@@ -1,6 +1,6 @@
 # Spotify-Extraktor
 
-Quelle: `src/beatbase/spotify/spotify_current.py`
+Quelle: `src/beatbase/extractor/spotify/spotify_current.py`
 
 Reiner API-Extraktor — kein Browser, kein Scraping. Nutzt
 [`spotipy`](https://spotipy.readthedocs.io/) als Wrapper über die Spotify
@@ -48,10 +48,10 @@ Minimaler Scope — Beatbase braucht keinen Schreibzugriff.
 ### Token-Cache
 
 ```python
-cache_path = os.path.join(os.path.dirname(__file__), ".spotify_cache")
+cache_path = str(SPOTIFY_CACHE_PATH)
 ```
 
-Der Cache liegt **neben dem Modul** (`src/beatbase/spotify/.spotify_cache`),
+Der Cache liegt **neben dem Modul** (`src/beatbase/extractor/spotify/.spotify_cache`),
 nicht im CWD. Das stellt sicher, dass derselbe Token gefunden wird, egal aus
 welchem Verzeichnis Beatbase gestartet wird.
 
@@ -68,7 +68,7 @@ Das passende Setup im Spotify Developer Dashboard ist erforderlich.
 ## CLI
 
 ```powershell
-uv run python -m beatbase.spotify.spotify_current
+uv run python -m beatbase.extractor.spotify.spotify_current
 ```
 
 Schreibt den aktuellen Song via `write_now_playing` in den IPC-Layer und gibt
@@ -86,7 +86,7 @@ Und `clear_now_playing()` wird aufgerufen.
 > zusammen (`"<Title> von <Artist1>, <Artist2>"`) und ruft
 > `write_now_playing(full_string)` ohne separate `artists`-Liste auf. Im IPC
 > landet daher `{"song": "Title von Artists", "artists": []}`. Der Reader in
-> `utils/now_playing.py::read_now_playing_data()` enthält einen Fallback, der
+> `shared/now_playing.py::read_now_playing_data()` enthält einen Fallback, der
 > das `" von "` wieder splittet — Konsumenten sehen also funktional die
 > richtigen Werte. Der Watcher dagegen ruft
 > `write_now_playing(song, artists)` mit getrennten Argumenten auf und schreibt
@@ -102,7 +102,7 @@ Und `clear_now_playing()` wird aufgerufen.
 | `Fehler beim Abrufen des Spotify-Tracks: 401` | Token abgelaufen, Refresh fehlgeschlagen | `.spotify_cache` löschen, neu einloggen |
 | Hängt im Browser nach Login | Redirect URI zeigt auf einen anderen Port | URI in `.env` an Dashboard-Eintrag angleichen |
 
-## Watcher-Integration
+## Orchestrator-Integration
 
 Der Watcher importiert `get_current_spotify_track` direkt und ruft sie alle
 `POLLING_INTERVAL` Sekunden auf. Die Spotify-Rohdaten landen via

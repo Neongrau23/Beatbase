@@ -19,13 +19,13 @@ Die einzelnen Komponenten sind in [`modules/`](modules/) im Detail dokumentiert.
 
 ```
 ┌──────────────────┐
-│ Spotify Polling  │  ← core/watcher.py (Default 10s)
+│ Spotify Polling  │  ← extractor/orchestrator.py (Default 10s)
 └────────┬─────────┘
          │ Songwechsel?
          ▼
 ┌──────────────────┐
-│  bus.clear()     │  ← core/hotline.py
-│  write_now_play  │  ← utils/now_playing.py (IPC für Standalone-Aufrufe)
+│  bus.clear()     │  ← extractor/hotline.py
+│  write_now_play  │  ← shared/now_playing.py (IPC für Standalone-Aufrufe)
 └────────┬─────────┘
          │
    ┌─────┴─────────────────────────┐
@@ -40,7 +40,7 @@ Die einzelnen Komponenten sind in [`modules/`](modules/) im Detail dokumentiert.
                  │
                  ▼
         ┌────────────────────┐
-        │ build_song_summary │  ← utils/callcenter.py
+        │ build_song_summary │  ← extractor/callcenter.py
         │ (deklaratives      │
         │  Master-Schema)    │
         └────────────────────┘
@@ -174,21 +174,21 @@ Jeder Browser-Extraktor folgt dem Submodul-Pattern:
 
 ## Gemeinsame Utilities
 
-- `utils/search_variations.py::generate_variations()` — generische
+- `shared/utils/search_variations.py::generate_variations()` — generische
   Variations-Generierung (Reihenfolge, Klammern, Featured-Artists,
   Remix/Edit-Tags, Unicode-Normalisierung). Wird von Tunebat, Songstats und
   Genius verwendet.
-- `utils/search_variations.py::extract_featured_artists()` — zieht versteckte
+- `shared/utils/search_variations.py::extract_featured_artists()` — zieht versteckte
   Künstler aus dem Titel (`feat.`, `ft.`, `with`, `von`).
-- `utils/cookie_manager.py::wait_for_and_dismiss_cookies()` — zentrales
+- `shared/utils/cookie_manager.py::wait_for_and_dismiss_cookies()` — zentrales
   Cookie-Banner-Handling (OneTrust, deutsche/englische Buttons).
-- `utils/validator.py::calculate_validation_score()` — zentrales
+- `shared/utils/validator.py::calculate_validation_score()` — zentrales
   Fuzzy-Matching-Scoring (difflib + Artist-Bonus + Remix-Bonus) für die
   Suchergebnis-Bewertung in allen Browser-Extraktoren.
 
 ## Logging-Konvention
 
-Alle Statusmeldungen gehen über `utils/log.py::log_status()` nach **stderr**.
+Alle Statusmeldungen gehen über `shared/utils/log.py::log_status()` nach **stderr**.
 Stdout bleibt frei für strukturierte JSON-Ausgaben der CLIs — das ist
 wichtig, wenn die CLIs gepiped werden:
 

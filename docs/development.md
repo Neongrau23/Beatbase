@@ -100,7 +100,7 @@ leeren Strukturen).
 Status-Meldungen gehören nach stderr:
 
 ```python
-from beatbase.utils.log import log_status
+from beatbase.shared.utils.log import log_status
 log_status("🎵 Neuer Song erkannt")
 ```
 
@@ -141,7 +141,7 @@ select = ["E", "F", "I"]
 
 ```powershell
 uv run pytest                        # alle Tests (~0.4s)
-uv run pytest tests/utils/           # nur ein Subtree
+uv run pytest tests/shared/utils/           # nur ein Subtree
 uv run pytest -k callcenter          # nach Namen filtern
 uv run pytest -m "not integration"   # Integration-Tests ausschliessen
 ```
@@ -164,7 +164,7 @@ tests/
 │   ├── genius/song.html
 │   └── songbpm/detail.html
 ├── core/test_hotline.py
-├── utils/
+├── shared/utils/
 │   ├── test_callcenter.py
 │   ├── test_now_playing.py
 │   ├── test_search_variations.py
@@ -194,7 +194,7 @@ tests/
 
 ### Neue Tests hinzufügen
 
-- Tests spiegeln die `src/`-Struktur. Beispiel: `tests/utils/test_callcenter.py`
+- Tests spiegeln die `src/`-Struktur. Beispiel: `tests/extractor/test_callcenter.py`
   testet `src/beatbase/utils/callcenter.py`.
 - Bus / Callcenter sind unit-test-freundlich — die `_clear_bus`-Fixture in
   `conftest.py` setzt den globalen Singleton vor jedem Test zurueck.
@@ -220,7 +220,7 @@ tests/
    ```
 4. Im Watcher (`core/watcher.py`) eine `ExtractorSpec` zur `EXTRACTORS`-Liste
    hinzufügen — Reihenfolge beachten. Optional `ENABLE_LASTFM`-Toggle in
-   `core/config.py`.
+   `shared/config.py`.
 5. Falls Felder ins Master-Summary einfließen sollen, das entsprechende
    Schema-Dict in `utils/callcenter.py` ergänzen (z. B. neue `Source` in
    `MUSIC_THEORY` oder neuen Block).

@@ -1,11 +1,11 @@
 # Songstats-Extraktor
 
 Quellen:
-- `src/beatbase/songstats/songstats.py` — CLI + Public-Entry
-- `src/beatbase/songstats/browser/context.py` — Playwright-Kontext
-- `src/beatbase/songstats/browser/navigator.py` — Suche & Profil-Auswahl
-- `src/beatbase/songstats/scraper/coordinator.py` — Orchestrierung
-- `src/beatbase/songstats/scraper/overview.py` — DOM-Extraktion
+- `src/beatbase/extractor/songstats/songstats.py` — CLI + Public-Entry
+- `src/beatbase/extractor/songstats/browser/context.py` — Playwright-Kontext
+- `src/beatbase/extractor/songstats/browser/navigator.py` — Suche & Profil-Auswahl
+- `src/beatbase/extractor/songstats/scraper/coordinator.py` — Orchestrierung
+- `src/beatbase/extractor/songstats/scraper/overview.py` — DOM-Extraktion
 
 Browser-Scraper für [songstats.com](https://songstats.com). Liefert die
 Overview-Sektion: Künstler, Labels, Distributors, Release Date, ISRCs,
@@ -23,7 +23,7 @@ search_on_songstats(
 ) -> dict | None
 ```
 
-Mit `page` läuft der Aufruf auf dem Browser-Kontext des Watchers; ohne `page`
+Mit `page` läuft der Aufruf auf dem Browser-Kontext des Orchestrators; ohne `page`
 öffnet `search_on_songstats` selbst einen persistenten Kontext. Der
 `direct_url`-Parameter ist die Cross-Extractor-Optimierung: Tunebat findet
 auf seiner Song-Seite einen Direktlink zu Songstats und legt ihn unter
@@ -75,7 +75,7 @@ Das Profil liegt im Projektroot unter `.profiles/songstats_profile/`, ist in
 
 ## Match-Scoring
 
-Songstats nutzt das zentrale Scoring aus `utils/validator.py`:
+Songstats nutzt das zentrale Scoring aus `shared/utils/validator.py`:
 
 ```python
 score = difflib.SequenceMatcher(None, target, found_text).ratio()

@@ -5,10 +5,10 @@ Beatbase trennt die Konfiguration nach Verantwortungsbereich.
 | Datei / Mechanismus | Inhalt |
 |---------------------|--------|
 | `.env` (Projektroot) | Secrets: Spotify-Credentials, optional `BEATBASE_DB_PATH` |
-| `src/beatbase/core/config.py` | Watcher-, IPC- und DB-Defaults |
-| `src/beatbase/tunebat/config.py` | Tunebat-Konstanten |
-| `src/beatbase/songstats/config.py` | Songstats-Konstanten |
-| `src/beatbase/genius/config.py` | Genius-Konstanten |
+| `src/beatbase/shared/config.py` | Watcher-, IPC- und DB-Defaults |
+| `src/beatbase/extractor/tunebat/config.py` | Tunebat-Konstanten |
+| `src/beatbase/extractor/songstats/config.py` | Songstats-Konstanten |
+| `src/beatbase/extractor/genius/config.py` | Genius-Konstanten |
 
 ## `.env`
 
@@ -25,7 +25,7 @@ Geladen über `python-dotenv` in `spotify_current.py`. Der Redirect-URI muss
 zusätzlich im [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
 hinterlegt sein.
 
-## Watcher & IPC (`core/config.py`)
+## Orchestrator & IPC (`shared/config.py`)
 
 | Konstante | Default | Wirkung |
 |-----------|---------|---------|
@@ -115,7 +115,7 @@ Beatbase schreibt an mehrere Stellen. Die lokalen Pfade liegen alle unter
 
 ### Extern (`BEATBASE_DB_PATH`)
 
-`BEATBASE_DB_PATH` (in `core/config.py`) zeigt auf eine **externe** SQLite-DB,
+`BEATBASE_DB_PATH` (in `shared/config.py`) zeigt auf eine **externe** SQLite-DB,
 die nicht zum Repo gehört. Wird nur verwendet, wenn `--track-id` an die
 Songstats-CLI übergeben wird. Schema-Anforderung: Eine Tabelle `tracks` mit
 Spalten `track_id`, `danceability`, `acousticness`, `energy`,
