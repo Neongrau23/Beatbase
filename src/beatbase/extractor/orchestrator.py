@@ -131,11 +131,15 @@ def _push_spotify(track: dict) -> None:
 
 
 # DEF: Führt einen einzelnen Extraktor mit Fehler-Isolation aus
-def _run_extractor(spec: ExtractorSpec, track: dict, page, headless: bool) -> None:
+def _run_extractor(spec: ExtractorSpec, track: dict, page, headless: bool) -> str:
     """Führt `spec.search_fn` aus und legt das Ergebnis im Bus ab.
 
     Exceptions werden gefangen, damit ein Crash eines Extraktors die Pipeline
     nicht stoppt — die folgenden Extraktoren laufen weiter.
+
+    Returns:
+        "ok" bei Treffer, "no_match" bei leerem Ergebnis,
+        "fail: <Klasse>: <msg>" bei Exception.
     """
     log_status(f"\n--- {spec.label} ---")
     try:
@@ -151,24 +155,34 @@ def _run_extractor(spec: ExtractorSpec, track: dict, page, headless: bool) -> No
             **kwargs,
         )
         if not result:
-            return
+            return "no_match"
 
         if spec.store_under_data_key:
             bus.set(spec.name, "data", result)
         for k, v in result.items():
             bus.set(spec.name, k, v)
+        return "ok"
     except Exception as e:
         log_status(f"❌ {spec.label}-Fehler: {e}")
+        return f"fail: {type(e).__name__}: {e}"
 
 
 # DEF: Verarbeitet einen erkannten Songwechsel
-def _handle_new_track(track: dict, headless: bool = WATCHER_HEADLESS) -> None:
-    """Reset Hotline, IPC schreiben, alle aktivierten Extraktoren ausführen, Summary ausgeben."""
+def handle_new_track(track: dict, headless: bool = WATCHER_HEADLESS) -> dict[str, str]:
+    """Reset Hotline, IPC schreiben, alle aktivierten Extraktoren ausführen, Summary ausgeben.
+
+    Returns:
+        Dict ``{extractor_name: status}`` fuer jeden aktivierten Extraktor.
+        Werte sind ``"ok"``, ``"no_match"`` oder ``"fail: <msg>"``.
+        Der normale Spotify-Watcher ignoriert den Rueckgabewert; der Batch-Modus
+        schreibt ihn in ``search_queue.db``.
+    """
     bus.clear()
     _publish_now_playing(track)
     _push_spotify(track)
     log_status(f"🎵 Neuer Song: {track.get('song')} von {', '.join(track.get('artists', []))}")
 
+    statuses: dict[str, str] = {}
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
         context = browser.new_context()
@@ -177,7 +191,7 @@ def _handle_new_track(track: dict, headless: bool = WATCHER_HEADLESS) -> None:
         try:
             for spec in EXTRACTORS:
                 if spec.enabled:
-                    _run_extractor(spec, track, page, headless)
+                    statuses[spec.name] = _run_extractor(spec, track, page, headless)
         finally:
             context.close()
             browser.close()
@@ -190,6 +204,8 @@ def _handle_new_track(track: dict, headless: bool = WATCHER_HEADLESS) -> None:
     spotify_id = track.get("id")
     if spotify_id:
         _handoff_to_processor(spotify_id, summary_json)
+
+    return statuses
 
 
 # DEF: Haupt-Loop
@@ -216,7 +232,7 @@ def run_watcher(headless: bool | None = None) -> None:
             else:
                 current_id = track.get("id")
                 if current_id and current_id != last_track_id:
-                    _handle_new_track(track, headless=active_headless)
+                    handle_new_track(track, headless=active_headless)
                     last_track_id = current_id
 
             time.sleep(POLLING_INTERVAL)

@@ -43,6 +43,7 @@ DATA_DIR = Path(os.getenv("BEATBASE_DATA_DIR", "data"))
 JSON_EXPORT_DIR = DATA_DIR / "json"
 QUEUE_DIR = DATA_DIR / "queue"
 SONGS_DB_PATH = DATA_DIR / "songs.db"
+SEARCH_QUEUE_DB_PATH = DATA_DIR / "search_queue.db"
 TUNEBAT_SEARCHES_DB_PATH = DATA_DIR / "tunebat_searches.db"
 TUNEBAT_SEARCHES_HTML_DIR = DATA_DIR / "tunebat_searches"
 SPOTIFY_CACHE_PATH = DATA_DIR / ".spotify_cache"
