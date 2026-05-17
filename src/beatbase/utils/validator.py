@@ -7,9 +7,7 @@ import difflib
 
 
 # DEF: calculate_validation_score(found_text, target_string, artists, artist_bonus) -> float
-def calculate_validation_score(
-    found_text: str, target_string: str, artists: list[str], artist_bonus: float = 0.2
-) -> float:
+def calculate_validation_score(found_text: str, target_string: str, artists: list[str], artist_bonus: float = 0.2) -> float:
     """SECTION: SCORING - Bewertet, wie gut ein Suchergebnis zum gesuchten Song passt.
 
     Nutzt Fuzzy-Matching zwischen Zielstring und gefundenem Text und
@@ -26,7 +24,7 @@ def calculate_validation_score(
     """
     found_text = found_text.lower()
     score = difflib.SequenceMatcher(None, target_string.lower(), found_text).ratio()
-    
+
     for artist in artists:
         if artist.lower() in found_text:
             score += artist_bonus

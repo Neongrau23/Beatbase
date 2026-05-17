@@ -25,17 +25,9 @@ def _extract_overview(soup: BeautifulSoup) -> dict:
         label_span = row.find("span", style=label_color)
         if label_span and any(t in label_span.text for t in targets):
             label = label_span.text.strip().replace(":", "")
-            vals = [
-                b.find("span").text.strip()
-                for b in row.find_all("div", style=pill_bg)
-                if b.find("span")
-            ]
+            vals = [b.find("span").text.strip() for b in row.find_all("div", style=pill_bg) if b.find("span")]
             if not vals:
-                vals = [
-                    s.text.strip()
-                    for s in row.find_all("span", style=light_text)
-                    if s.text.strip()
-                ]
+                vals = [s.text.strip() for s in row.find_all("span", style=light_text) if s.text.strip()]
             if vals:
                 results[label] = ", ".join(vals)
 
@@ -55,10 +47,7 @@ def _extract_overview(soup: BeautifulSoup) -> dict:
         def is_genre_container(style_str: str | None) -> bool:
             if not style_str:
                 return False
-            return (
-                "background-color: rgb(46, 46, 46)" in style_str
-                and "margin-right: 8px" in style_str
-            )
+            return "background-color: rgb(46, 46, 46)" in style_str and "margin-right: 8px" in style_str
 
         genre_containers = soup.find_all("div", style=is_genre_container)
         for container in genre_containers:

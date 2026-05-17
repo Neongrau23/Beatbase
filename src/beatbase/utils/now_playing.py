@@ -84,10 +84,7 @@ def _write_file(value: str) -> None:
 
 
 def _read_env() -> str:
-    cmd = (
-        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
-        f"[System.Environment]::GetEnvironmentVariable('{ENV_VAR_NOW_PLAY}', 'User')"
-    )
+    cmd = f"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; [System.Environment]::GetEnvironmentVariable('{ENV_VAR_NOW_PLAY}', 'User')"
     result = subprocess.run(
         ["powershell", "-Command", cmd],
         capture_output=True,

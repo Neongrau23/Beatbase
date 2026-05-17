@@ -74,10 +74,7 @@ def find_song_url(
                         break
 
         if not target_profile_url:
-            log_status(
-                f"  ⚠️ Kein präzises Profil für '{main_artist}' "
-                "in den Artist-Cards gefunden."
-            )
+            log_status(f"  ⚠️ Kein präzises Profil für '{main_artist}' in den Artist-Cards gefunden.")
             # Fallback: Versuche den ersten Artist-Link überhaupt
             fallback_link = page.locator("mini-artist-card a.mini_card").first
             if fallback_link.count() > 0:

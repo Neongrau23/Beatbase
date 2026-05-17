@@ -8,9 +8,7 @@ from beatbase.genius.config import HEADLESS, PROFILE_DIR, USER_AGENT
 
 
 # DEF: Erstellt Playwright Kontext
-def create_playwright_context(
-    playwright: Playwright, headless: bool = HEADLESS
-) -> BrowserContext:
+def create_playwright_context(playwright: Playwright, headless: bool = HEADLESS) -> BrowserContext:
     """Erstellt und gibt einen konfigurierten Playwright Chromium-Kontext zurück.
 
     Nutzt einen absoluten Pfad für das Profil, um Konflikte zu vermeiden.

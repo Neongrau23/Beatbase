@@ -105,21 +105,27 @@ def _determine_release_date() -> str | None:
 # SECTION: FIELD SCHEMAS - Die Priorisierungen pro Block
 # WHY: Reihenfolge der Quellen reflektiert die historisch bewährte Priorität.
 META: dict[str, FieldSpec] = {
-    "title": FieldSpec(sources=(
-        Source("spotify", "name"),
-        Source("songstats", "Title"),
-        Source("tunebat", "title"),
-    )),
-    "artist": FieldSpec(sources=(
-        Source("spotify", "artists", transform=_join_list),
-        Source("songstats", "Artists"),
-        Source("songstats", "Artist"),
-        Source("tunebat", "artist"),
-    )),
-    "album": FieldSpec(sources=(
-        Source("tunebat", "album"),
-        Source("spotify", "album"),
-    )),
+    "title": FieldSpec(
+        sources=(
+            Source("spotify", "name"),
+            Source("songstats", "Title"),
+            Source("tunebat", "title"),
+        )
+    ),
+    "artist": FieldSpec(
+        sources=(
+            Source("spotify", "artists", transform=_join_list),
+            Source("songstats", "Artists"),
+            Source("songstats", "Artist"),
+            Source("tunebat", "artist"),
+        )
+    ),
+    "album": FieldSpec(
+        sources=(
+            Source("tunebat", "album"),
+            Source("spotify", "album"),
+        )
+    ),
     "release_date": FieldSpec(
         sources=(
             Source("tunebat", "release_date"),
@@ -128,22 +134,26 @@ META: dict[str, FieldSpec] = {
         ),
         fallback=_determine_release_date,
     ),
-    "isrc": FieldSpec(sources=(
-        Source("spotify", "isrc"),
-        Source("songstats", "ISRCs"),
-        Source("songstats", "isrc"),
-    )),
-    "explicit": FieldSpec(sources=(
-        Source("tunebat", "explicit"),
-        Source("spotify", "explicit"),
-    )),
-    "label": FieldSpec(sources=(
-        Source("tunebat", "label"),
-        Source("songstats", "Record Labels"),
-    )),
-    "genres": FieldSpec(sources=(
-        Source("songstats", "Genres"),
-    )),
+    "isrc": FieldSpec(
+        sources=(
+            Source("spotify", "isrc"),
+            Source("songstats", "ISRCs"),
+            Source("songstats", "isrc"),
+        )
+    ),
+    "explicit": FieldSpec(
+        sources=(
+            Source("tunebat", "explicit"),
+            Source("spotify", "explicit"),
+        )
+    ),
+    "label": FieldSpec(
+        sources=(
+            Source("tunebat", "label"),
+            Source("songstats", "Record Labels"),
+        )
+    ),
+    "genres": FieldSpec(sources=(Source("songstats", "Genres"),)),
 }
 
 MUSIC_THEORY: dict[str, FieldSpec] = {
@@ -157,16 +167,16 @@ MUSIC_THEORY: dict[str, FieldSpec] = {
 LINKS: dict[str, FieldSpec] = {
     # WHY: Genius wird vom Watcher sowohl als ``data``-Block als auch flach abgelegt;
     # historisch wurde zuerst aus dem Block gelesen.
-    "genius": FieldSpec(sources=(
-        Source("genius", "data", transform=_from_dict("url")),
-        Source("genius", "url"),
-    )),
+    "genius": FieldSpec(
+        sources=(
+            Source("genius", "data", transform=_from_dict("url")),
+            Source("genius", "url"),
+        )
+    ),
     "spotify": FieldSpec(sources=(Source("spotify", "url"),)),
     "tunebat": FieldSpec(sources=(Source("tunebat", "url"),)),
     "songstats": FieldSpec(sources=(Source("songstats", "url"),)),
-    "songbpm": FieldSpec(sources=(
-        Source("songbpm", "data", transform=_from_dict("url")),
-    )),
+    "songbpm": FieldSpec(sources=(Source("songbpm", "data", transform=_from_dict("url")),)),
 }
 
 # Audio Features liegen als geschachteltes dict unter ("tunebat", "audio_features").

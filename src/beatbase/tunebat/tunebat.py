@@ -117,17 +117,13 @@ def search_on_tunebat(
         context = create_browser_context(p, headless=actual_headless)
         new_page = context.new_page()
         try:
-            return _execute_tunebat_search(
-                new_page, song, artists, queries, target_string
-            )
+            return _execute_tunebat_search(new_page, song, artists, queries, target_string)
         except Exception as e:
             log_status(f"❌ Fehler bei Tunebat: {e}")
             return None
         finally:
             if dev_mode:
-                log_status(
-                    "\n🛠️ DEV-MODE: Browser bleibt offen. ENTER zum Schließen..."
-                )
+                log_status("\n🛠️ DEV-MODE: Browser bleibt offen. ENTER zum Schließen...")
                 input("fertig...")
             context.close()
 
@@ -136,16 +132,10 @@ def search_on_tunebat(
 def main():
     """ENTRY: Einstiegspunkt für das Skript."""
     parser = argparse.ArgumentParser(description="Tunebat Metadata Scraper")
-    parser.add_argument(
-        "query", nargs="?", help="Suchbegriff (Fallback: aktueller Song)"
-    )
+    parser.add_argument("query", nargs="?", help="Suchbegriff (Fallback: aktueller Song)")
     parser.add_argument("--song", help="Expliziter Songtitel")
-    parser.add_argument(
-        "--artist", action="append", default=[], help="Expliziter Künstler"
-    )
-    parser.add_argument(
-        "--headless", action="store_true", help="Browser im Headless-Modus"
-    )
+    parser.add_argument("--artist", action="append", default=[], help="Expliziter Künstler")
+    parser.add_argument("--headless", action="store_true", help="Browser im Headless-Modus")
     parser.add_argument(
         "--no-headless",
         action="store_false",
@@ -180,9 +170,7 @@ def main():
         sys.exit(1)
 
     log_status(f"⏳ Suche auf Tunebat: '{song_name}'...")
-    ergebnis = search_on_tunebat(
-        song_name, artists, headless=args.headless, dev_mode=args.dev
-    )
+    ergebnis = search_on_tunebat(song_name, artists, headless=args.headless, dev_mode=args.dev)
     if ergebnis:
         print(json.dumps(ergebnis, indent=4, ensure_ascii=False))
     else:

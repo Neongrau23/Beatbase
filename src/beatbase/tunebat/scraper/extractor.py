@@ -30,12 +30,7 @@ def _extract_metrics(page: Page) -> dict:
         for i in range(containers.count()):
             container = containers.nth(i)
             value = container.locator("h3").inner_text().strip()
-            label = (
-                container.locator("span.ant-typography-secondary")
-                .inner_text()
-                .strip()
-                .lower()
-            )
+            label = container.locator("span.ant-typography-secondary").inner_text().strip().lower()
             results[label] = value
     except Exception:
         pass
