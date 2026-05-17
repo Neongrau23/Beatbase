@@ -116,8 +116,10 @@ def _handoff_to_processor(track_id: str, summary_json: str) -> None:
 
 # DEF: Aktualisiert den IPC-Layer mit dem aktuellen Track
 def _publish_now_playing(track: dict) -> None:
-    """Schreibt Song und Artist strukturiert in den IPC-Layer."""
-    write_now_playing(track.get("song"), track.get("artists", []))
+    song = track.get("song")
+    if song is None:
+        return
+    write_now_playing(song, track.get("artists", []))
 
 
 # DEF: Befüllt die Hotline mit Spotify-Rohdaten

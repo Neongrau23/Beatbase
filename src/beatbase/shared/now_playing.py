@@ -46,7 +46,7 @@ def read_now_playing() -> str:
 
 
 # DEF: Schreibt den aktuellen Song strukturiert
-def write_now_playing(song: str, artists: list[str] = None) -> None:
+def write_now_playing(song: str, artists: list[str] | None = None) -> None:
     """Setzt den aktuellen Song strukturiert im IPC-Layer."""
     data = {"song": song, "artists": artists or []}
     value = json.dumps(data, ensure_ascii=False)

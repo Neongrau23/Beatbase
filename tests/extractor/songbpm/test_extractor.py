@@ -32,16 +32,19 @@ def mocked_html(fixtures_dir, monkeypatch):
 
 def test_extracts_song_title(mocked_html):
     result = extract_song_info("https://fake.url/song")
+    assert result is not None
     assert result["title"] == "Blinding Lights"
 
 
 def test_extracts_artist(mocked_html):
     result = extract_song_info("https://fake.url/song")
+    assert result is not None
     assert result["artist"] == "The Weeknd"
 
 
 def test_extracts_metrics(mocked_html):
     result = extract_song_info("https://fake.url/song")
+    assert result is not None
     assert result["key"] == "F# minor"
     assert result["duration"] == "3:20"
     assert result["bpm"] == "171"
@@ -49,22 +52,26 @@ def test_extracts_metrics(mocked_html):
 
 def test_extracts_description(mocked_html):
     result = extract_song_info("https://fake.url/song")
+    assert result is not None
     assert "energetic" in result["description"]
     assert "synth-pop" in result["description"]
 
 
 def test_extracts_spotify_url(mocked_html):
     result = extract_song_info("https://fake.url/song")
+    assert result is not None
     assert result["spotify_url"] == "https://open.spotify.com/track/0VjIjW4GlUZAMYd2vXMi3b"
 
 
 def test_includes_source_url(mocked_html):
     result = extract_song_info("https://fake.url/song")
+    assert result is not None
     assert result["url"] == "https://fake.url/song"
 
 
 def test_no_none_values_in_result(mocked_html):
     result = extract_song_info("https://fake.url/song")
+    assert result is not None
     # extract_song_info filtert None-Werte heraus
     assert all(v is not None for v in result.values())
 
