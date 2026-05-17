@@ -95,6 +95,9 @@ Nicht verwechseln — Beatbase schreibt an mehrere Stellen parallel:
 - **`data/tunebat_searches.db`** (`extractor/tunebat/db.py`) — lokale SQLite mit rohen
   Tunebat-Suchergebnissen. Append-only: eine Zeile pro Treffer, mit
   `searched_at`-Zeitstempel.
+- **`data/genius.db`** (`extractor/genius/db.py`) — lokale SQLite mit allen auf
+  Artist-Songs-Seiten entdeckten Genius-Songs (`song`, `artist`, `genius_url` PK).
+  Append-only, dedupliziert per URL via `INSERT OR IGNORE`.
 - **`data/tunebat_searches/<query>.html`** — optionale Roh-HTML-Dumps der
   Tunebat-Suchergebnisseite. Toggle: `SAVE_TUNEBAT_HTML` in `shared/config.py`.
 - **`BEATBASE_DB_PATH`** (Default `C:/workspace/beatbase/spotify.db`) — **externe**

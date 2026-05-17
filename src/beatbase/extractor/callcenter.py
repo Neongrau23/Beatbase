@@ -211,6 +211,7 @@ def build_song_summary() -> dict:
         "analysis": songbpm_data.get("description"),
         "lyrics": genius_data.get("lyrics", []),
         "album_tracklist": genius_data.get("album_tracklist", []),
+        "artist_songs": genius_data.get("artist_songs", []),
         "credits": genius_data.get("credits", {}),
         "links": {field: _pick(spec) for field, spec in LINKS.items()},
     }

@@ -7,20 +7,57 @@ from bs4 import BeautifulSoup
 from playwright.sync_api import Page
 
 from beatbase.extractor.genius.config import MATCH_THRESHOLD, PAGE_LOAD_SLEEP
+from beatbase.extractor.genius.scraper.extractor import extract_artist_songs
 from beatbase.shared.config import GENIUS_URL
 from beatbase.shared.utils.cookie_manager import wait_for_and_dismiss_cookies
 from beatbase.shared.utils.log import log_status
 from beatbase.shared.utils.validator import calculate_validation_score
 
+# CONFIG: Sicherheits-Cap fuer das Voll-Scrollen einer Artist-Songs-Liste.
+# WHY: Genius nutzt Infinite Scroll; ohne Cap koennte ein Bug zu Endlos-Loop fuehren.
+MAX_ARTIST_SONG_SCROLLS = 50
+# Anzahl aufeinanderfolgender Scrolls ohne neue Karten, bevor wir abbrechen.
+SCROLL_STAGNATION_LIMIT = 3
 
-# DEF: Sucht Song-URL über Künstler-Profil
+
+# DEF: Scrollt die Artist-Songs-Seite bis ans Ende und sammelt alle Karten
+def _scroll_collect_artist_songs(page: Page) -> list[dict]:
+    """Scrollt bis kein neuer Content mehr nachgeladen wird und liefert alle Songs.
+
+    Bricht ab, wenn drei aufeinanderfolgende Scrolls keine neuen Karten mehr
+    bringen oder ``MAX_ARTIST_SONG_SCROLLS`` ueberschritten ist.
+    """
+    prev_count = -1
+    stagnation = 0
+    songs: list[dict] = []
+
+    for _ in range(MAX_ARTIST_SONG_SCROLLS):
+        soup = BeautifulSoup(page.content(), "html.parser")
+        songs = extract_artist_songs(soup)
+
+        if len(songs) == prev_count:
+            stagnation += 1
+            if stagnation >= SCROLL_STAGNATION_LIMIT:
+                break
+        else:
+            stagnation = 0
+            prev_count = len(songs)
+
+        page.mouse.wheel(0, 3000)
+        time.sleep(1)
+
+    log_status(f"  🎼 Artist-Songs gesammelt: {len(songs)} Eintrag(e)")
+    return songs
+
+
+# DEF: Sucht Song-URL über Künstler-Profil und sammelt die komplette Songliste
 def find_song_url(
     page: Page,
     queries: list[str],
     target_string: str,
     artists: list[str],
-) -> str | None:
-    """Sucht auf Genius zuerst den Künstler über mini-artist-card und dann den Song in dessen Liste.
+) -> dict:
+    """Sucht auf Genius den Künstler, findet den passenden Song und sammelt die Songliste.
 
     Args:
         page: Ein aktives Playwright Page-Objekt.
@@ -29,11 +66,15 @@ def find_song_url(
         artists: Liste der beteiligten Künstler (erster ist der Haupt-Künstler).
 
     Returns:
-        Die vollständige URL des Song-Treffers, oder None wenn nichts gefunden.
+        Dict mit den Keys ``song_url`` (vollständige URL oder ``None``) und
+        ``artist_songs`` (Liste aller Songs der Artist-Songs-Seite; leer wenn
+        der Künstler nicht gefunden wurde).
     """
+    result: dict = {"song_url": None, "artist_songs": []}
+
     if not artists:
         log_status("  ⚠️ Keine Künstler für die Suche angegeben.")
-        return None
+        return result
 
     main_artist = artists[0]
     song_name = queries[0] if queries else ""
@@ -81,7 +122,7 @@ def find_song_url(
                 log_status("  💡 Nutze ersten verfügbaren Artist-Treffer als Fallback.")
                 fallback_link.click()
             else:
-                return None
+                return result
 
         log_status(f"  ✅ Künstler-Profil von '{main_artist}' geöffnet.")
 
@@ -125,12 +166,17 @@ def find_song_url(
             if not best_link.startswith("http"):
                 best_link = GENIUS_URL + best_link
             log_status(f"  ✅ Song gefunden: '{best_link}' ({max_score:.2f} Score)")
-            return best_link
+            result["song_url"] = best_link
+
+        # STEP 5: Komplette Artist-Songs-Liste sammeln.
+        # WHY: Auch wenn der Match-Loop nach 0.95-Score abgebrochen hat,
+        # wollen wir die gesamte Liste fuer downstream-Konsumenten.
+        result["artist_songs"] = _scroll_collect_artist_songs(page)
 
     except Exception as e:
         log_status(f"  ⚠️ Fehler bei der präzisen Profil-Suche: {e}")
 
-    return None
+    return result
 
 
 # DEF: Lädt Song-Seite und extrahiert Soup

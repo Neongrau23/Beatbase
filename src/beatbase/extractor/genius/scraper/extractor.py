@@ -1,10 +1,60 @@
-"""Extraktion von Lyrics, Credits und Tracklists aus geparstem Genius-HTML."""
+"""Extraktion von Lyrics, Credits, Tracklists und Artist-Songs aus geparstem Genius-HTML."""
 
 import re
 
 from bs4 import BeautifulSoup
 
 from beatbase.shared.config import GENIUS_URL
+
+
+# DEF: Liest alle mini-song-cards auf der Artist-Songs-Seite
+def extract_artist_songs(soup: BeautifulSoup) -> list[dict]:
+    """Extrahiert die komplette Songliste eines Künstler-Profils.
+
+    Die Genius-Artist-Songs-Seite (``<artist-songs>``-Komponente) rendert jede
+    Position als ``<mini-song-card>`` mit Titel, Subtitle (oft erneut der
+    Künstlername), Thumbnail-URL im inline ``background-image`` und einem
+    ``<a>``-Element auf die Lyrics-Seite.
+
+    Args:
+        soup: BeautifulSoup-Objekt der Artist-Songs-Seite.
+
+    Returns:
+        Liste von Dicts mit den Keys ``title``, ``subtitle``, ``url`` und
+        ``thumbnail_url`` (jeder Wert ggf. ``None``, wenn nicht vorhanden).
+        Duplikate (gleicher ``url``) werden entfernt — Genius rendert dieselbe
+        Karte gelegentlich mehrfach im DOM, wenn die Liste teilgescrollt ist.
+    """
+    songs: list[dict] = []
+    seen: set[str] = set()
+
+    for card in soup.select("mini-song-card a.mini_card"):
+        url = card.get("href")
+        if not url or url in seen:
+            continue
+        seen.add(url)
+
+        title_elem = card.select_one(".mini_card-title")
+        subtitle_elem = card.select_one(".mini_card-subtitle")
+        thumb_elem = card.select_one(".mini_card-thumbnail")
+
+        thumbnail_url = None
+        if thumb_elem:
+            style = thumb_elem.get("style", "")
+            match = re.search(r'url\(["\']?([^"\')]+)["\']?\)', style)
+            if match:
+                thumbnail_url = match.group(1)
+
+        songs.append(
+            {
+                "title": title_elem.get_text(strip=True) if title_elem else None,
+                "subtitle": subtitle_elem.get_text(strip=True) if subtitle_elem else None,
+                "url": url,
+                "thumbnail_url": thumbnail_url,
+            }
+        )
+
+    return songs
 
 
 # DEF: Extrahiert Song-Details

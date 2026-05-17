@@ -12,6 +12,7 @@ from playwright.sync_api import sync_playwright
 from beatbase.extractor.genius.browser.context import create_playwright_context
 from beatbase.extractor.genius.browser.navigator import find_song_url, load_song_page
 from beatbase.extractor.genius.config import HEADLESS
+from beatbase.extractor.genius.db import save_artist_songs
 from beatbase.extractor.genius.scraper.extractor import extrahiere_song_details_json
 from beatbase.shared.config import SENTINEL_NONE
 from beatbase.shared.now_playing import read_now_playing_data
@@ -50,15 +51,26 @@ def _execute_genius_search(
     try:
         log_status(f"🔗 Suche auf Genius: {song} von {', '.join(artists)}")
 
-        # Genius durchsuchen und die URL des passenden Songs ermitteln
-        song_url = find_song_url(page, queries, target_string, artists)
+        # Genius durchsuchen: Song-URL + komplette Artist-Songs-Liste ermitteln.
+        search_result = find_song_url(page, queries, target_string, artists)
+        song_url = search_result.get("song_url")
+        artist_songs = search_result.get("artist_songs", [])
 
-        # Abbruch, wenn kein passender Treffer gefunden wurde
+        # Append-only-DB fuellen. Fehler hier sollen die Pipeline nicht stoppen.
+        if artist_songs:
+            try:
+                inserted = save_artist_songs(artist_songs)
+                log_status(f"💾 genius.db: {inserted} neue Song(s) gespeichert")
+            except Exception as e:
+                log_status(f"⚠️ genius.db-Schreibfehler ignoriert: {e}")
+
+        # Kein Song-Match: dennoch ggf. die Songliste zurueckgeben.
         if not song_url:
             log_status("❌ Kein Song gefunden.")
             return {
                 "lyrics": [{"section": "[Info]", "lines": ["Keine Lyrics Verfügbar"]}],
                 "url": None,
+                "artist_songs": artist_songs,
             }
 
         log_status(f"🔗 Öffne Song: {song_url}")
@@ -69,8 +81,9 @@ def _execute_genius_search(
         # Lyrics und Metadaten aus dem geparsten HTML extrahieren
         ergebnis_json = extrahiere_song_details_json(soup)
 
-        # Quell-URL zum Ergebnis hinzufügen
+        # Quell-URL und Artist-Songs zum Ergebnis hinzufügen
         ergebnis_json["url"] = song_url
+        ergebnis_json["artist_songs"] = artist_songs
 
         log_status("✅ Vollständige Daten (inkl. Lyrics) extrahiert.")
         log_status(f"📊 Genius Daten: {json.dumps(ergebnis_json, indent=4, ensure_ascii=False)}")

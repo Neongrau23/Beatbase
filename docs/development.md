@@ -163,15 +163,25 @@ tests/
 │   ├── songstats/overview.html
 │   ├── genius/song.html
 │   └── songbpm/detail.html
-├── tests/extractor/test_hotline.py
-├── shared/utils/
+├── extractor/
+│   ├── test_batch.py
 │   ├── test_callcenter.py
-│   ├── test_now_playing.py
-│   ├── test_search_variations.py
-│   └── test_validator.py
-├── songstats/test_overview.py
-├── genius/test_extractor.py
-└── songbpm/test_extractor.py
+│   ├── test_hotline.py
+│   ├── test_orchestrator_run_extractor.py
+│   ├── test_search_queue.py
+│   ├── genius/
+│   │   ├── test_db.py
+│   │   └── test_extractor.py
+│   ├── songbpm/test_extractor.py
+│   ├── songstats/test_overview.py
+│   └── tunebat/test_db.py
+├── processor/
+│   └── test_songs_db.py
+└── shared/
+    ├── test_now_playing.py
+    └── utils/
+        ├── test_search_variations.py
+        └── test_validator.py
 ```
 
 ### Was abgedeckt ist
@@ -184,12 +194,20 @@ tests/
 - **Extraktoren mit HTML-Fixtures** (`_extract_overview`,
   `extrahiere_song_details_json`, `extract_song_info` via
   monkeypatched `requests.get`).
+- **DB-Module** (`processor/songs_db.py::save_song_summary`,
+  `extractor/tunebat/db.py::save_search_results`,
+  `extractor/genius/db.py::save_artist_songs` — SQLite mit
+  `monkeypatch.setattr(...DB_PATH...)` auf tmp-Datei).
+- **Batch-Modus** (`extractor/search_queue.py`-Schema und CRUD-Helpers,
+  `extractor/batch.py`-Workflows mit gemocktem `handle_new_track`).
+- **Pipeline-Fehlerisolation** (`extractor/orchestrator.py::_run_extractor` —
+  ok/no_match/fail-Statuus).
 
 ### Was nicht abgedeckt ist
 
 - Playwright-Pfade (`search_on_*`, `browser/navigator.py`,
   `browser/context.py`) — brauchen echte HTML-Dumps oder Playwright-Mocks.
-- Watcher-Pipeline-Integration (`_handle_new_track`).
+- Watcher-Loop (`run_watcher`, `handle_new_track` end-to-end).
 - `env`-Backend in `now_playing.py` (PowerShell-Subprozess).
 
 ### Neue Tests hinzufügen

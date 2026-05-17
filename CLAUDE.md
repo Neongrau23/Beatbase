@@ -104,7 +104,7 @@ Der Processor wird vom Orchestrator nach jedem Song synchron getriggert, kann ab
 ### Logistik: `shared/`
 Alles, was beide Standorte brauchen.
 
-- `shared/config.py` — Watcher-, IPC- und Pfad-Defaults. **Alle hartcodierten Pfade** (`DATA_DIR`, `QUEUE_DIR`, `SONGS_DB_PATH`, `SEARCH_QUEUE_DB_PATH`, `TUNEBAT_SEARCHES_DB_PATH`, `SPOTIFY_CACHE_PATH`, `PID_FILE_PATH` etc.) leben hier und sind über `BEATBASE_DATA_DIR` / `BEATBASE_DB_PATH` per Env-Var überschreibbar.
+- `shared/config.py` — Watcher-, IPC- und Pfad-Defaults. **Alle hartcodierten Pfade** (`DATA_DIR`, `QUEUE_DIR`, `SONGS_DB_PATH`, `SEARCH_QUEUE_DB_PATH`, `TUNEBAT_SEARCHES_DB_PATH`, `GENIUS_DB_PATH`, `SPOTIFY_CACHE_PATH`, `PID_FILE_PATH` etc.) leben hier und sind über `BEATBASE_DATA_DIR` / `BEATBASE_DB_PATH` per Env-Var überschreibbar.
 - `shared/now_playing.py` — IPC-Layer (`now_playing.txt` oder Windows-Env, je nach `IPC_MODE`).
 - `shared/utils/log.py`, `validator.py`, `search_variations.py`, `cookie_manager.py` — Hilfsfunktionen, die mehrere Module brauchen.
 
@@ -114,6 +114,7 @@ Alles, was beide Standorte brauchen.
 - **`data/songs.db`** (`processor/songs_db.py`) — lokale SQLite mit allen Summary-Feldern (Lyrics/Tracklist/Credits als JSON-Strings).
 - **`data/search_queue.db`** (`extractor/search_queue.py`) — Batch-Tracking-Tabelle. Eine Zeile pro Track, Statusspalte pro Quelle (`NULL` / `"ok"` / `"no_match"` / `"fail: <msg>"`). Wird **nur** vom Batch-Modus geschrieben — der Spotify-Watcher fasst sie nicht an.
 - **`data/tunebat_searches.db`** (`extractor/tunebat/db.py`) — Append-only-Log roher Tunebat-Suchergebnisse. Bleibt bewusst bei Tunebat (nicht im Processor), weil es Scraper-internes Audit-Log ist.
+- **`data/genius.db`** (`extractor/genius/db.py`) — Append-only-Tabelle aller auf Artist-Songs-Seiten entdeckten Genius-Songs (`song`, `artist`, `genius_url` PK). Dedupliziert per URL via `INSERT OR IGNORE`; jeder Genius-Lookup fuellt sie weiter.
 - **`data/.spotify_cache`** — OAuth-Token-Cache von spotipy. Wird beim ersten Auth-Flow angelegt.
 - **`BEATBASE_DB_PATH`** (Default `C:/workspace/beatbase/spotify.db`) — externe DB, vom Importer befüllt, wenn Audio-Features im Summary stehen. Gehört zu einem übergeordneten System.
 
@@ -176,7 +177,7 @@ Jeder Browser-Extraktor folgt dem Submodul-Pattern:
 ## Konfiguration
 
 - `.env` im Projektroot: `SPOTIPY_CLIENT_ID`, `SPOTIPY_CLIENT_SECRET`, optional `SPOTIPY_REDIRECT_URI`.
-- `src/beatbase/shared/config.py`: Watcher-, IPC- und alle Pfad-Defaults (`POLLING_INTERVAL`, `IPC_MODE`, `WATCHER_HEADLESS`, `SENTINEL_NONE`, `ENABLE_*`-Toggles, `DATA_DIR`, `QUEUE_DIR`, `JSON_EXPORT_DIR`, `SONGS_DB_PATH`, `SEARCH_QUEUE_DB_PATH`, `TUNEBAT_SEARCHES_DB_PATH`, `TUNEBAT_SEARCHES_HTML_DIR`, `SPOTIFY_CACHE_PATH`, `PID_FILE_PATH`, `SAVE_TUNEBAT_HTML`, Quellen-URLs).
+- `src/beatbase/shared/config.py`: Watcher-, IPC- und alle Pfad-Defaults (`POLLING_INTERVAL`, `IPC_MODE`, `WATCHER_HEADLESS`, `SENTINEL_NONE`, `ENABLE_*`-Toggles, `DATA_DIR`, `QUEUE_DIR`, `JSON_EXPORT_DIR`, `SONGS_DB_PATH`, `SEARCH_QUEUE_DB_PATH`, `TUNEBAT_SEARCHES_DB_PATH`, `TUNEBAT_SEARCHES_HTML_DIR`, `GENIUS_DB_PATH`, `SPOTIFY_CACHE_PATH`, `PID_FILE_PATH`, `SAVE_TUNEBAT_HTML`, Quellen-URLs).
 - `src/beatbase/extractor/{songstats,genius,tunebat}/config.py`: Quellen-spezifische Konstanten (`MATCH_THRESHOLD`, `PROFILE_DIR`, `USER_AGENT`, Timeouts, Headless-Default).
 - `BEATBASE_DATA_DIR` (Env-Var) → überschreibt den `data/`-Pfad für die Queue, JSON-Archive und lokalen DBs.
 - `BEATBASE_DB_PATH` (Env-Var oder `shared/config.py`-Default) → externer SQLite-Pfad für `processor/external_db.py`. Default `C:/workspace/beatbase/spotify.db`.

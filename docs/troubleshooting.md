@@ -171,16 +171,17 @@ externe DB. Übersicht: [Konfiguration → Persistenz-Pfade](configuration.md#pe
 - Schema-Mismatch. Die Spalten und der Tabellenname sind in `processor/external_db.py`
   hartkodiert. Bei Schema-Wechsel im übergeordneten System dort anpassen.
 
-### Lokale DBs (`data/songs.db`, `data/tunebat_searches.db`)
+### Lokale DBs (`data/songs.db`, `data/tunebat_searches.db`, `data/genius.db`, `data/search_queue.db`)
 
-- Beide werden beim ersten Schreibvorgang automatisch angelegt
+- Werden beim ersten Schreibvorgang automatisch angelegt
   (`mkdir(parents=True, exist_ok=True)`); das `data/`-Verzeichnis muss nicht
   manuell vorhanden sein.
 - **Korrupte DB / Schema-Wechsel:** Die jeweilige Datei einfach löschen — wird
   beim nächsten Lauf neu erzeugt. Bei `data/songs.db` gehen damit alle
   archivierten Song-Summaries verloren; bei `data/tunebat_searches.db` die
-  Such-Historie. Wer das Archiv unter `data/json/` parallel führt (Default),
-  hat die Summaries noch als Einzelfiles.
+  Such-Historie, bei `data/genius.db` die gesammelten Artist-Songs-Links,
+  bei `data/search_queue.db` der Batch-Fortschritt. Wer das Archiv unter
+  `data/json/` parallel führt (Default), hat die Summaries noch als Einzelfiles.
 - **HTML-Dumps loswerden:** `SAVE_TUNEBAT_HTML = False` in `shared/config.py`
   setzen. Bestehende Dumps unter `data/tunebat_searches/` können dann manuell
   gelöscht werden.

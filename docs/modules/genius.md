@@ -3,8 +3,9 @@
 Quellen:
 - `src/beatbase/extractor/genius/genius.py` — CLI + Public-Entry
 - `src/beatbase/extractor/genius/browser/context.py` — Playwright-Kontext mit persistentem Profil
-- `src/beatbase/extractor/genius/browser/navigator.py` — Suche & Profil-Auswahl
-- `src/beatbase/extractor/genius/scraper/extractor.py` — BeautifulSoup-Extraktion (Lyrics, Credits, Album)
+- `src/beatbase/extractor/genius/browser/navigator.py` — Suche, Profil-Auswahl, Scroll-Collector
+- `src/beatbase/extractor/genius/scraper/extractor.py` — BeautifulSoup-Extraktion (Lyrics, Credits, Album, Artist-Songs)
+- `src/beatbase/extractor/genius/db.py` — Append-only SQLite-Persistenz (`data/genius.db`)
 
 Browser-Scraper für [genius.com](https://genius.com). Liefert Lyrics
 sektionsweise, Credits, Album-Tracklist und die validierte Song-URL.
@@ -53,12 +54,15 @@ search_on_genius(song, artists)
   │
   └─ _execute_genius_search()
       │
-      ├─ find_song_url(page, queries, ...)
+      ├─ find_song_url(page, queries, ...) → {song_url, artist_songs}
       │     │
       │     ├─ Sucht über Genius-Suchleiste / Artist-Profil
       │     ├─ Iteriert über Such-Variationen
       │     ├─ Berechnet calculate_validation_score (shared/utils/validator.py)
-      │     └─ Bester Treffer (> MATCH_THRESHOLD) → Song-URL
+      │     ├─ Bester Treffer (> MATCH_THRESHOLD) → song_url
+      │     └─ _scroll_collect_artist_songs → komplette mini-song-card-Liste
+      │
+      ├─ save_artist_songs(artist_songs)   ← Append-only in data/genius.db
       │
       ├─ load_song_page(page, url)
       │     │
@@ -141,6 +145,14 @@ Pro Container in `[data-lyrics-container='true']`:
   "album_tracklist": [
     {"number": "1", "title": "...", "link": "https://genius.com/..."}
   ],
+  "artist_songs": [
+    {
+      "title": "Araña",
+      "subtitle": "Uve Sad",
+      "url": "https://genius.com/Uve-sad-arana-lyrics",
+      "thumbnail_url": "https://images.genius.com/..."
+    }
+  ],
   "credits": {
     "producers": ["..."],
     "writers": ["..."]
@@ -150,7 +162,28 @@ Pro Container in `[data-lyrics-container='true']`:
 
 Wenn kein Treffer gefunden wird, gibt der Extraktor ein "Fallback"-Ergebnis
 zurück mit Lyrics `[{"section": "[Info]", "lines": ["Keine Lyrics Verfügbar"]}]`
-und `"url": None`.
+und `"url": None`. `artist_songs` kann auch dann gefüllt sein, wenn nur der
+Künstler (nicht der konkrete Song) gefunden wurde.
+
+## Artist-Songs-Persistenz (`data/genius.db`)
+
+Nach jedem Lookup schreibt `_execute_genius_search` die gesammelten Karten via
+`save_artist_songs` in eine append-only SQLite. Schema:
+
+```sql
+CREATE TABLE songs (
+    genius_url TEXT PRIMARY KEY,   -- dedupliziert via INSERT OR IGNORE
+    song TEXT NOT NULL,
+    artist TEXT NOT NULL
+);
+```
+
+`genius_url` ist Primärschlüssel — bekannte URLs werden silently übersprungen.
+Die DB wächst nur an, nichts wird überschrieben oder gelöscht. Pfad-Default:
+`data/genius.db`, überschreibbar via `GENIUS_DB_PATH` in `shared/config.py`.
+
+DB-Schreibfehler werden im Extraktor abgefangen — die Pipeline läuft auch dann
+weiter, wenn die DB temporär nicht beschreibbar ist (Lockout, Disk-Full).
 
 ## Stealth-Flag
 

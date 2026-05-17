@@ -132,6 +132,7 @@ class TestBuildSongSummary:
             "analysis",
             "lyrics",
             "album_tracklist",
+            "artist_songs",
             "credits",
             "links",
         }

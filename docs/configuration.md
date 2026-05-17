@@ -111,6 +111,7 @@ Beatbase schreibt an mehrere Stellen. Die lokalen Pfade liegen alle unter
 | `data/json/{track_id}.json` | `extractor/orchestrator.py` | Master-JSON pro Song. Pfad steuerbar via `JSON_EXPORT_DIR`. |
 | `data/songs.db` | `processor/songs_db.py` | SQLite mit Song-Summaries. Track-ID = PK; bestehende Einträge werden bei jedem Wechsel überschrieben. Pfad ist fest verdrahtet (siehe `DB_PATH` im Modul). |
 | `data/tunebat_searches.db` | `tunebat/db.py` | SQLite mit rohen Tunebat-Treffern. Append-only. Pfad fest verdrahtet. |
+| `data/genius.db` | `genius/db.py` | SQLite mit allen entdeckten Genius-Songs (`song`, `artist`, `genius_url` PK). Append-only, dedupliziert per URL. Steuerbar via `GENIUS_DB_PATH`. |
 | `data/tunebat_searches/*.html` | `tunebat/browser/navigator.py` | Optionale Roh-HTML-Dumps. Toggle via `SAVE_TUNEBAT_HTML`. |
 
 ### Extern (`BEATBASE_DB_PATH`)

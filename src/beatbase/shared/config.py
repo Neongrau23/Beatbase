@@ -45,6 +45,7 @@ QUEUE_DIR = DATA_DIR / "queue"
 SONGS_DB_PATH = DATA_DIR / "songs.db"
 SEARCH_QUEUE_DB_PATH = DATA_DIR / "search_queue.db"
 TUNEBAT_SEARCHES_DB_PATH = DATA_DIR / "tunebat_searches.db"
+GENIUS_DB_PATH = DATA_DIR / "genius.db"
 TUNEBAT_SEARCHES_HTML_DIR = DATA_DIR / "tunebat_searches"
 SPOTIFY_CACHE_PATH = DATA_DIR / ".spotify_cache"
 PID_FILE_PATH = Path(".beatbase.pid")

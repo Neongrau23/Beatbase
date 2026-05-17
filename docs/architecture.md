@@ -207,6 +207,7 @@ Beatbase schreibt an mehrere Stellen parallel — nicht verwechseln:
 | `data/json/{track_id}.json` | `extractor/orchestrator.py::_archive_summary` | Master-JSON pro Song (Default-Output) |
 | `data/songs.db` | `processor/songs_db.py::save_song_summary` | Lokale SQLite, vom Watcher pro Songwechsel gefüllt. Track-ID = PK, bestehende Einträge werden überschrieben. Lyrics/Tracklist/Credits als JSON-Strings serialisiert. |
 | `data/tunebat_searches.db` | `tunebat/db.py::save_search_results` | Lokale SQLite mit den rohen Tunebat-Suchtreffern. Append-only, eine Zeile pro Treffer mit `searched_at`. |
+| `data/genius.db` | `genius/db.py::save_artist_songs` | Lokale SQLite mit allen auf Artist-Songs-Seiten entdeckten Genius-Songs. Schema: `genius_url` (PK), `song`, `artist`. Append-only, dedupliziert per URL via `INSERT OR IGNORE`. |
 | `data/tunebat_searches/<query>.html` | `tunebat/browser/navigator.py::_save_debug_html` | Optionale Roh-HTML-Dumps der Suchergebnisseite. Toggle via `SAVE_TUNEBAT_HTML` in `shared/config.py`. |
 | `BEATBASE_DB_PATH` (Default `C:/workspace/beatbase/spotify.db`) | `processor/external_db.py::update_audio_features` | **Externe** SQLite, nur über `--track-id`-Workflow bei Songstats geschrieben. Gehört nicht zum Repo, sondern zu einem übergeordneten System. Pfad via Env-Var überschreibbar. |
 
