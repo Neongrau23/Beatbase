@@ -1,8 +1,8 @@
 # Hotline & Callcenter
 
 Quellen:
-- `src/beatbase/core/hotline.py`
-- `src/beatbase/shared/utils/callcenter.py`
+- `src/beatbase/extractor/hotline.py`
+- `src/beatbase/shared/extractor/callcenter.py`
 
 Zweistufiger Datenfluss: **Hotline** ist die nackte Ablage, **Callcenter** die
 Aggregations-Schicht mit deklarativem Schema.

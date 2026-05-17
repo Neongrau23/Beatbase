@@ -21,6 +21,23 @@ Manuelles Abbrechen per `Ctrl+C` ist ebenfalls möglich.
 
 Konfiguration: [`configuration.md#watcher--ipc-coreconfigpy`](configuration.md#watcher--ipc-coreconfigpy).
 
+## Batch-Modus
+
+Erlaubt das gezielte Abarbeiten einer Liste von Tracks (z. B. aus einer CSV-Datei) unabhängig vom Spotify-Watcher. Der Zustand wird in einer eigenen SQLite-Datenbank (`data/search_queue.db`) protokolliert.
+
+```powershell
+uv run python -m beatbase batch add tracks.csv          # CSV (id, song, artist, ...) einlesen
+uv run python -m beatbase batch run [--limit N]         # Ausstehende Tracks scrapen
+uv run python -m beatbase batch retry [--source NAME]   # Fehlgeschlagene Tracks zurücksetzen
+uv run python -m beatbase batch status                  # Statusübersicht anzeigen
+```
+
+Argumente der Subbefehle:
+- `add`: Erwartet eine CSV-Datei. Benötigt mindestens Spalten `song` und `artist`. Generiert eine Track-ID falls fehlend. Semikolon-getrennte Künstler (`Artist1; Artist2`) werden unterstützt.
+- `run`: `--limit` beschränkt die Anzahl an bearbeiteten Tracks pro Lauf. `--headless` läuft im Hintergrund. Setzt fehlschlagende Quellen auf `fail: <msg>` und erfolgreiche auf `ok`.
+- `retry`: `--source` beschränkt den Retry auf einen bestimmten Extraktor (z.B. `tunebat`). Setzt `fail:`-Stati wieder auf `NULL` (pending).
+- `status`: Gibt eine Zählung (`ok`, `no_match`, `fail`, `pending`) pro Quelle aus.
+
 ## Spotify
 
 Holt den aktuell spielenden Track und schreibt ihn in den IPC-Layer

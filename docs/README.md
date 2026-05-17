@@ -17,10 +17,11 @@ SongBPM ─────┘
 
 Ein zentraler **Watcher** pollt Spotify in einem festen Intervall, erkennt
 Songwechsel über die Track-ID und triggert die Browser-Extraktoren in einer
-deklarativen Pipeline (`EXTRACTORS` in `core/watcher.py`). Rohdaten landen im
+deklarativen Pipeline (`EXTRACTORS` in `extractor/orchestrator.py`). Rohdaten landen im
 **Hotline**-Bus; das **Callcenter** baut daraus eine strukturierte Zusammenfassung
 nach einem festen Master-Schema. Standalone-Aufrufe der Extraktoren sind ebenfalls
 möglich, sie greifen über einen **IPC-Layer** auf den aktuell spielenden Song zu.
+Außerdem gibt es einen **Batch-Modus** zur sequenziellen Abarbeitung von Track-Listen.
 
 ## Inhaltsverzeichnis
 
@@ -58,6 +59,8 @@ src/beatbase/
 ├── __main__.py              # CLI: extract / process / batch / (default beides)
 ├── extractor/               # 🏭 STANDORT 1: BESCHAFFUNG
 │   ├── orchestrator.py      # Watcher + deklarative EXTRACTORS-Pipeline
+│   ├── batch.py             # Abarbeitung von Track-Listen aus der Queue-DB
+│   ├── search_queue.py      # SQLite-Tracking für Batch-Modus (Status pro Quelle)
 │   ├── hotline.py           # Globaler Daten-Bus (Hotline)
 │   ├── callcenter.py        # Daten-Aggregation mit deklarativem Schema
 │   ├── queue.py             # write_to_queue() Helper
@@ -80,22 +83,23 @@ src/beatbase/
         └── cookie_manager.py    # Zentrales Cookie-Banner-Handling
 ```
 
-## Persistenz-Stellen (drei lokale DBs/Pfade + eine externe)
+## Persistenz-Stellen (mehrere lokale DBs/Pfade + eine externe)
 
 Nicht verwechseln — Beatbase schreibt an mehrere Stellen parallel:
 
-- **`data/json/{track_id}.json`** — JSON-Archiv pro Song, Default-Output des Watchers.
-- **`data/songs.db`** (`core/songs_db.py`) — lokale SQLite, vom Watcher pro Songwechsel
-  befüllt. Flache Tabelle mit allen Summary-Feldern (Lyrics/Tracklist/Credits als
+- **`data/queue/{track_id}.json`** — JSON-Archiv pro Song, Output des Extractors zur Übergabe an den Processor.
+- **`data/search_queue.db`** (`extractor/search_queue.py`) — Tracking-Datenbank für den Batch-Modus. Hält den Status pro Quelle und Track fest.
+- **`data/songs.db`** (`processor/songs_db.py`) — lokale SQLite, vom Importer befüllt.
+  Flache Tabelle mit allen Summary-Feldern (Lyrics/Tracklist/Credits als
   JSON-Strings). Track-ID ist Primärschlüssel; bestehende Einträge werden überschrieben.
-- **`data/tunebat_searches.db`** (`tunebat/db.py`) — lokale SQLite mit rohen
+- **`data/tunebat_searches.db`** (`extractor/tunebat/db.py`) — lokale SQLite mit rohen
   Tunebat-Suchergebnissen. Append-only: eine Zeile pro Treffer, mit
   `searched_at`-Zeitstempel.
 - **`data/tunebat_searches/<query>.html`** — optionale Roh-HTML-Dumps der
-  Tunebat-Suchergebnisseite. Toggle: `SAVE_TUNEBAT_HTML` in `core/config.py`.
+  Tunebat-Suchergebnisseite. Toggle: `SAVE_TUNEBAT_HTML` in `shared/config.py`.
 - **`BEATBASE_DB_PATH`** (Default `C:/workspace/beatbase/spotify.db`) — **externe**
   SQLite, nur über den `--track-id`-Workflow bei Songstats geschrieben
-  (`core/db.py::update_audio_features`). Gehört nicht zum Repo, sondern zu einem
+  (`processor/external_db.py::update_audio_features`). Gehört nicht zum Repo, sondern zu einem
   übergeordneten System.
 
 Alle `data/`-Pfade sind in `.gitignore`.
@@ -117,3 +121,4 @@ uv run python -m beatbase --stop
 ```
 
 Mehr Details findest du in [Getting Started](getting-started.md).
+

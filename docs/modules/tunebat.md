@@ -161,7 +161,7 @@ Suche zwei lokale Artefakte:
   selbst nutzt diese DB nicht weiter.
 - **`data/tunebat_searches/<query>.html`** — Roh-HTML-Dump des
   Suchergebnis-Containers. Wird über den Toggle `SAVE_TUNEBAT_HTML` in
-  `core/config.py` gesteuert (Default: `True`). Hilfreich beim Debuggen, wenn
+  `shared/config.py` gesteuert (Default: `True`). Hilfreich beim Debuggen, wenn
   Tunebats CSS-Klassen wechseln und der Parser brechen sollte — der gespeicherte
   Dump kann offline gegen den Parser laufen gelassen werden.
 

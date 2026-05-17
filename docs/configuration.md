@@ -58,7 +58,7 @@ deterministisch: **Tunebat → Songstats → Genius → SongBPM**. Tunebat zuers
 weil es Songstats einen Direktlink über `bus.set("tunebat",
 "songstats_url", …)` liefern kann.
 
-## URLs (`core/config.py`)
+## URLs (`shared/config.py`)
 
 ```python
 SONGBPM_URL  = "https://songbpm.com/"
@@ -108,8 +108,8 @@ Beatbase schreibt an mehrere Stellen. Die lokalen Pfade liegen alle unter
 
 | Pfad | Quelle | Inhalt |
 |------|--------|--------|
-| `data/json/{track_id}.json` | `core/watcher.py` | Master-JSON pro Song. Pfad steuerbar via `JSON_EXPORT_DIR`. |
-| `data/songs.db` | `core/songs_db.py` | SQLite mit Song-Summaries. Track-ID = PK; bestehende Einträge werden bei jedem Wechsel überschrieben. Pfad ist fest verdrahtet (siehe `DB_PATH` im Modul). |
+| `data/json/{track_id}.json` | `extractor/orchestrator.py` | Master-JSON pro Song. Pfad steuerbar via `JSON_EXPORT_DIR`. |
+| `data/songs.db` | `processor/songs_db.py` | SQLite mit Song-Summaries. Track-ID = PK; bestehende Einträge werden bei jedem Wechsel überschrieben. Pfad ist fest verdrahtet (siehe `DB_PATH` im Modul). |
 | `data/tunebat_searches.db` | `tunebat/db.py` | SQLite mit rohen Tunebat-Treffern. Append-only. Pfad fest verdrahtet. |
 | `data/tunebat_searches/*.html` | `tunebat/browser/navigator.py` | Optionale Roh-HTML-Dumps. Toggle via `SAVE_TUNEBAT_HTML`. |
 

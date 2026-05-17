@@ -163,7 +163,7 @@ tests/
 │   ├── songstats/overview.html
 │   ├── genius/song.html
 │   └── songbpm/detail.html
-├── core/test_hotline.py
+├── tests/extractor/test_hotline.py
 ├── shared/utils/
 │   ├── test_callcenter.py
 │   ├── test_now_playing.py
@@ -195,7 +195,7 @@ tests/
 ### Neue Tests hinzufügen
 
 - Tests spiegeln die `src/`-Struktur. Beispiel: `tests/extractor/test_callcenter.py`
-  testet `src/beatbase/utils/callcenter.py`.
+  testet `src/beatbase/extractor/callcenter.py`.
 - Bus / Callcenter sind unit-test-freundlich — die `_clear_bus`-Fixture in
   `conftest.py` setzt den globalen Singleton vor jedem Test zurueck.
 - Fuer HTML-Fixtures: ein neues Minimal-HTML unter
@@ -218,17 +218,17 @@ tests/
        page=None,
    ) -> dict | None: ...
    ```
-4. Im Watcher (`core/watcher.py`) eine `ExtractorSpec` zur `EXTRACTORS`-Liste
+4. Im Watcher (`extractor/orchestrator.py`) eine `ExtractorSpec` zur `EXTRACTORS`-Liste
    hinzufügen — Reihenfolge beachten. Optional `ENABLE_LASTFM`-Toggle in
    `shared/config.py`.
 5. Falls Felder ins Master-Summary einfließen sollen, das entsprechende
-   Schema-Dict in `utils/callcenter.py` ergänzen (z. B. neue `Source` in
+   Schema-Dict in `extractor/callcenter.py` ergänzen (z. B. neue `Source` in
    `MUSIC_THEORY` oder neuen Block).
 6. CLI-Modul für Standalone-Aufruf inklusive IPC-Fallback bauen.
 
 ### Neue Felder ins Master-Schema
 
-Das Master-Schema lebt in `utils/callcenter.py` als `META`,
+Das Master-Schema lebt in `extractor/callcenter.py` als `META`,
 `MUSIC_THEORY`, `LINKS`-Dicts. Felder dort ergänzen — kein anderer Code muss
 sich ändern.
 

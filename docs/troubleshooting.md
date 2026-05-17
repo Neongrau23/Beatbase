@@ -148,7 +148,7 @@ Executable doesn't exist at ...\ms-playwright\chromium-...\chrome.exe
 
 ### `Unbekannter IPC_MODE: '…'`
 
-- `core/config.py::IPC_MODE` ist nur `"file"` oder `"env"` erlaubt.
+- `shared/config.py::IPC_MODE` ist nur `"file"` oder `"env"` erlaubt.
 
 ## Datenbanken
 
@@ -168,7 +168,7 @@ externe DB. Übersicht: [Konfiguration → Persistenz-Pfade](configuration.md#pe
 
 #### `sqlite3.OperationalError: no such table: tracks`
 
-- Schema-Mismatch. Die Spalten und der Tabellenname sind in `core/db.py`
+- Schema-Mismatch. Die Spalten und der Tabellenname sind in `processor/external_db.py`
   hartkodiert. Bei Schema-Wechsel im übergeordneten System dort anpassen.
 
 ### Lokale DBs (`data/songs.db`, `data/tunebat_searches.db`)
@@ -181,7 +181,7 @@ externe DB. Übersicht: [Konfiguration → Persistenz-Pfade](configuration.md#pe
   archivierten Song-Summaries verloren; bei `data/tunebat_searches.db` die
   Such-Historie. Wer das Archiv unter `data/json/` parallel führt (Default),
   hat die Summaries noch als Einzelfiles.
-- **HTML-Dumps loswerden:** `SAVE_TUNEBAT_HTML = False` in `core/config.py`
+- **HTML-Dumps loswerden:** `SAVE_TUNEBAT_HTML = False` in `shared/config.py`
   setzen. Bestehende Dumps unter `data/tunebat_searches/` können dann manuell
   gelöscht werden.
 

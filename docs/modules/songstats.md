@@ -140,7 +140,7 @@ Default-Pfad: `C:/workspace/beatbase/spotify.db`, überschreibbar via
 `BEATBASE_DB_PATH`-Env-Var.
 
 Diese DB gehört nicht zum Repo. Beim Schemawechsel des übergeordneten Systems
-muss `core/db.py` angepasst werden.
+muss `processor/external_db.py` angepasst werden.
 
 ## Bekannte Sensitivitäten
 

@@ -54,7 +54,7 @@ Die einzelnen Komponenten sind in [`modules/`](modules/) im Detail dokumentiert.
 Beatbase nutzt einen zweistufigen Datenfluss, der Extraktoren von der finalen
 Datenstruktur entkoppelt.
 
-### Hotline (`core/hotline.py`)
+### Hotline (`extractor/hotline.py`)
 
 Ein globaler, unstrukturierter Key-Value-Speicher (`bus`). Jeder Extraktor legt
 seine Rohdaten unter seinem Quellennamen ab:
@@ -71,7 +71,7 @@ Die Hotline kennt kein Schema. Sie ist reine Ablage.
 nicht kennen. Er schreibt einfach alles in den Bus, was er hat. Die Hotline
 wird beim Songwechsel über `bus.clear()` geleert.
 
-### Callcenter (`utils/callcenter.py`)
+### Callcenter (`extractor/callcenter.py`)
 
 Die Logik-Schicht. Liest aus `bus.get_all()` und baut strukturierte Views nach
 einem **deklarativen Schema**: Pro Feld wird eine geordnete Liste von Quellen
@@ -101,22 +101,21 @@ Feld, wie werden Konflikte aufgelöst.
 
 Details: [`modules/hotline-callcenter.md`](modules/hotline-callcenter.md).
 
-## Der Watcher-Loop
+## Der Watcher-Loop und Batch-Modus
 
-`core/watcher.py` ist der Orchestrator. Pro Iteration:
+`extractor/orchestrator.py` ist der zentrale Orchestrator. Es gibt zwei Einstiegspunkte:
 
-1. Spotify API pollen (`get_current_spotify_track`).
-2. Wenn Track-ID sich geändert hat → `_handle_new_track(track)`:
-   - `bus.clear()` — Hotline reseten.
-   - `write_now_playing(...)` — IPC-Layer aktualisieren.
-   - Spotify-Rohdaten in den Bus pushen.
-   - **Einen** Playwright-Browser-Kontext öffnen.
-   - Für jede aktivierte `ExtractorSpec` in `EXTRACTORS` der Reihe nach
-     `_run_extractor(spec, …)` aufrufen — alle nutzen denselben `page`.
-   - `get_summary_json()` ausgeben und nach
-     `JSON_EXPORT_DIR/{track_id}.json` archivieren.
-   - Browser-Kontext schließen.
-3. `time.sleep(POLLING_INTERVAL)`.
+1. **Spotify Watcher (`__main__.py`):** Pollt Spotify alle 10s und triggert `handle_new_track()` bei Songwechsel.
+2. **Batch-Modus (`extractor/batch.py`):** Liest Tracks aus `data/search_queue.db` und triggert `handle_new_track()` für jeden anstehenden Track, um gezielt große Mengen abzuarbeiten.
+
+Der Ablauf in `handle_new_track(track)`:
+- `bus.clear()` — Hotline reseten.
+- `write_now_playing(...)` — IPC-Layer aktualisieren.
+- **Einen** Playwright-Browser-Kontext öffnen.
+- Für jede aktivierte `ExtractorSpec` in `EXTRACTORS` der Reihe nach
+  `_run_extractor(spec, …)` aufrufen — alle nutzen denselben `page`. Die Statusrückgabe (`ok`, `no_match`, `fail: <msg>`) wird vom Batch-Modus erfasst.
+- `write_to_queue(...)` — Gibt das finale JSON in die Verarbeitungs-Queue aus.
+- Browser-Kontext schließen.
 
 Pro Song wird **ein gemeinsamer** Browser-Kontext geöffnet und zwischen allen
 Extraktoren geteilt — das spart vier Cold-Starts. Die `search_on_*`-Funktionen
@@ -137,9 +136,9 @@ Details: [`modules/watcher.md`](modules/watcher.md).
 ## IPC-Layer
 
 Extraktoren müssen auch standalone laufen können — ohne Watcher. Sie greifen
-über `utils/now_playing.py` auf den aktuell spielenden Song zu.
+über `shared/now_playing.py` auf den aktuell spielenden Song zu.
 
-Zwei Backends, konfigurierbar in `core/config.py::IPC_MODE`:
+Zwei Backends, konfigurierbar in `shared/config.py::IPC_MODE`:
 
 - **`"file"` (Default):** `now_playing.txt` im aktuellen Arbeitsverzeichnis.
   Atomar geschrieben (temp + `os.replace`), damit Reader keinen Partial-Read
@@ -205,11 +204,11 @@ Beatbase schreibt an mehrere Stellen parallel — nicht verwechseln:
 
 | Pfad | Schreiber | Inhalt |
 |------|-----------|--------|
-| `data/json/{track_id}.json` | `core/watcher.py::_archive_summary` | Master-JSON pro Song (Default-Output) |
-| `data/songs.db` | `core/songs_db.py::save_song_summary` | Lokale SQLite, vom Watcher pro Songwechsel gefüllt. Track-ID = PK, bestehende Einträge werden überschrieben. Lyrics/Tracklist/Credits als JSON-Strings serialisiert. |
+| `data/json/{track_id}.json` | `extractor/orchestrator.py::_archive_summary` | Master-JSON pro Song (Default-Output) |
+| `data/songs.db` | `processor/songs_db.py::save_song_summary` | Lokale SQLite, vom Watcher pro Songwechsel gefüllt. Track-ID = PK, bestehende Einträge werden überschrieben. Lyrics/Tracklist/Credits als JSON-Strings serialisiert. |
 | `data/tunebat_searches.db` | `tunebat/db.py::save_search_results` | Lokale SQLite mit den rohen Tunebat-Suchtreffern. Append-only, eine Zeile pro Treffer mit `searched_at`. |
-| `data/tunebat_searches/<query>.html` | `tunebat/browser/navigator.py::_save_debug_html` | Optionale Roh-HTML-Dumps der Suchergebnisseite. Toggle via `SAVE_TUNEBAT_HTML` in `core/config.py`. |
-| `BEATBASE_DB_PATH` (Default `C:/workspace/beatbase/spotify.db`) | `core/db.py::update_audio_features` | **Externe** SQLite, nur über `--track-id`-Workflow bei Songstats geschrieben. Gehört nicht zum Repo, sondern zu einem übergeordneten System. Pfad via Env-Var überschreibbar. |
+| `data/tunebat_searches/<query>.html` | `tunebat/browser/navigator.py::_save_debug_html` | Optionale Roh-HTML-Dumps der Suchergebnisseite. Toggle via `SAVE_TUNEBAT_HTML` in `shared/config.py`. |
+| `BEATBASE_DB_PATH` (Default `C:/workspace/beatbase/spotify.db`) | `processor/external_db.py::update_audio_features` | **Externe** SQLite, nur über `--track-id`-Workflow bei Songstats geschrieben. Gehört nicht zum Repo, sondern zu einem übergeordneten System. Pfad via Env-Var überschreibbar. |
 
 Die lokalen `data/`-Pfade sind in `.gitignore`. Die externe DB existiert nur, wenn
 das übergeordnete System sie anlegt — fehlt sie, schlägt der `--track-id`-Pfad
