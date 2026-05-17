@@ -4,6 +4,7 @@ Liest und schreibt je nach `core/config.py::IPC_MODE` entweder eine Datei
 oder die Windows-User-Umgebungsvariable.
 """
 
+import base64
 import json
 import os
 import subprocess
@@ -95,6 +96,6 @@ def _read_env() -> str:
 
 
 def _write_env(value: str) -> None:
-    safe = value.replace("'", "''")
-    cmd = f"[System.Environment]::SetEnvironmentVariable('{ENV_VAR_NOW_PLAY}', '{safe}', 'User')"
+    b64_val = base64.b64encode(value.encode("utf-8")).decode("ascii")
+    cmd = f"$val = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('{b64_val}')); [System.Environment]::SetEnvironmentVariable('{ENV_VAR_NOW_PLAY}', $val, 'User')"
     subprocess.run(["powershell", "-Command", cmd], capture_output=True)

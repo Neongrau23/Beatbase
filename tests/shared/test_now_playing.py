@@ -7,13 +7,18 @@ import json
 
 import pytest
 
+import base64
+from unittest.mock import patch
+
 from beatbase.shared.now_playing import (
     SENTINEL_NONE,
     clear_now_playing,
     read_now_playing,
     read_now_playing_data,
     write_now_playing,
+    _write_env,
 )
+from beatbase.shared.config import ENV_VAR_NOW_PLAY
 
 
 @pytest.fixture
@@ -103,3 +108,30 @@ def test_unicode_in_song_and_artists(ipc_file_in_tmp):
     write_now_playing("Söng über alles", ["Ärtist"])
     data = read_now_playing_data()
     assert data == {"song": "Söng über alles", "artists": ["Ärtist"]}
+
+
+@patch("beatbase.shared.now_playing.subprocess.run")
+def test_write_env_uses_base64_for_safe_execution(mock_run):
+    payload = "Malicious'; Write-Host 'pwned"
+    _write_env(payload)
+
+    # Check that subprocess.run was called
+    assert mock_run.called
+    args, kwargs = mock_run.call_args
+
+    # We passed ["powershell", "-Command", cmd]
+    cmd_list = args[0]
+    assert cmd_list[0] == "powershell"
+    assert cmd_list[1] == "-Command"
+
+    # The actual command should contain the base64 encoded payload
+    cmd = cmd_list[2]
+    b64_expected = base64.b64encode(payload.encode("utf-8")).decode("ascii")
+
+    # Verify the structure avoids command injection
+    assert "[System.Convert]::FromBase64String" in cmd
+    assert b64_expected in cmd
+    assert ENV_VAR_NOW_PLAY in cmd
+
+    # No single quotes from the payload should be present unencoded
+    assert "Malicious" not in cmd
