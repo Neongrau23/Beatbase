@@ -144,8 +144,8 @@ def find_best_result(page: Page, target_string: str, artists: list[str]) -> Loca
                 _save_debug_html(target_string, html_content)
             parsed = parse_search_results(html_content)
             save_search_results(target_string, parsed)
-        except Exception:
-            pass
+        except Exception as e:
+            log_status(f"⚠️ Fehler beim Verarbeiten der Suchergebnisse: {e}")
 
         rows = results_container.locator(".pDoqI")
         count = rows.count()
