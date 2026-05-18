@@ -25,7 +25,12 @@ def search_on_songbpm(
     page=None,
     album: str | None = None,
 ) -> dict | None:
-    """Führt eine Suche auf SongBPM aus und extrahiert die Details des besten Treffers."""
+    """Führt eine Suche auf SongBPM aus und extrahiert die Details des besten Treffers.
+
+    ``album`` wird vom Orchestrator pipeline-einheitlich durchgereicht, aber
+    von SongBPM derzeit nicht genutzt. Platzhalter fuer kuenftige
+    Album-spezifische Suchstrategien.
+    """
     search_query = f"{song} {', '.join(artists)}"
 
     def _do_search(active_page):

@@ -92,6 +92,9 @@ def generate_tunebat_variations(
     Reihenfolge: Album/Single zuerst, dann Songtitel — jeweils mit allen
     Kuenstlern und danach nur mit dem Hauptkuenstler.
     """
+    # WHY: Spotify liefert gelegentlich Whitespace-only-Album-Namen — als None behandeln.
+    album = (album.strip() or None) if album else None
+
     s_norm = song.replace("’", "'").replace("‘", "'")
     s_norm = normalize("NFKD", s_norm).encode("ascii", "ignore").decode("ascii")
     clean_song = re.sub(

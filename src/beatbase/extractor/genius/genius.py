@@ -106,6 +106,10 @@ def search_on_genius(
     """SECTION: ORCHESTRATION - Sucht auf Genius und gibt extrahierte Song-Details zurück.
 
     Koordiniert Browser-Kontext, Navigation und Extraktion über Playwright.
+
+    ``album`` wird vom Orchestrator pipeline-einheitlich durchgereicht, aber
+    von Genius derzeit nicht genutzt — Genius indexiert nicht nach Album.
+    Platzhalter fuer kuenftige Album-spezifische Suchstrategien.
     """
     artists, target_string, queries = _prepare_search_data(song, artists)
 

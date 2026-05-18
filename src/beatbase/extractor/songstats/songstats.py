@@ -30,6 +30,10 @@ def search_on_songstats(
     einen Browser-Kontext verwalten wollen (z. B. der zentrale Watcher).
     Liefert ``None`` bei Fehler oder leerem Ergebnis (konsistent mit den
     anderen ``search_on_*``-Funktionen).
+
+    ``album`` wird vom Orchestrator pipeline-einheitlich durchgereicht, aber
+    von Songstats derzeit nicht genutzt. Platzhalter fuer kuenftige
+    Album-spezifische Suchstrategien.
     """
     if page:
         try:
