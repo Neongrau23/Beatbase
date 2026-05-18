@@ -52,4 +52,4 @@ PID_FILE_PATH = Path(".beatbase.pid")
 
 # Externe Beatbase-SQLite-DB für update_audio_features (processor/external_db.py).
 # Default ist der bisherige Pfad; über die Env-Var BEATBASE_DB_PATH überschreibbar.
-BEATBASE_DB_PATH = os.getenv("BEATBASE_DB_PATH", "C:/workspace/beatbase/spotify.db")
+BEATBASE_DB_PATH = os.getenv("BEATBASE_DB_PATH", "C:/workspace/beatbase/data/spotify.db")
