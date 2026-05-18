@@ -3,12 +3,15 @@
 Der env-Backend nutzt PowerShell-Subprozesse und wird hier nicht getestet.
 """
 
+import base64
 import json
+from unittest.mock import patch
 
 import pytest
 
 from beatbase.shared.now_playing import (
     SENTINEL_NONE,
+    _write_env,
     clear_now_playing,
     read_now_playing,
     read_now_playing_data,
@@ -103,3 +106,27 @@ def test_unicode_in_song_and_artists(ipc_file_in_tmp):
     write_now_playing("Söng über alles", ["Ärtist"])
     data = read_now_playing_data()
     assert data == {"song": "Söng über alles", "artists": ["Ärtist"]}
+
+
+def test_write_env_uses_base64_for_safety():
+    test_value = "Malicious'; Write-Host 'Injected"
+
+    with patch('subprocess.run') as mock_run:
+        _write_env(test_value)
+
+        mock_run.assert_called_once()
+        args, kwargs = mock_run.call_args
+
+        command_list = args[0]
+        assert command_list[0] == "powershell"
+        assert command_list[1] == "-Command"
+
+        ps_cmd = command_list[2]
+
+        # Verify base64 logic is present
+        assert "[System.Convert]::FromBase64String" in ps_cmd
+        assert "Write-Host" not in ps_cmd  # The raw string should not be in the command
+        assert "Malicious" not in ps_cmd
+
+        b64_expected = base64.b64encode(test_value.encode("utf-8")).decode("utf-8")
+        assert b64_expected in ps_cmd
