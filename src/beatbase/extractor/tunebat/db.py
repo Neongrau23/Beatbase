@@ -51,7 +51,6 @@ def save_search_results(search_term: str, results: list[dict]) -> None:
     if not results:
         return
 
-    conn = _get_connection()
     now = datetime.now(timezone.utc).isoformat()
 
     rows = [
@@ -72,12 +71,11 @@ def save_search_results(search_term: str, results: list[dict]) -> None:
         for r in results
     ]
 
-    conn.executemany(
-        """INSERT INTO search_results
-           (search_term, title, artists, key, bpm, camelot, popularity,
-            image_url, tunebat_url, spotify_url, songstats_url, searched_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        rows,
-    )
-    conn.commit()
-    conn.close()
+    with _get_connection() as conn:
+        conn.executemany(
+            """INSERT INTO search_results
+               (search_term, title, artists, key, bpm, camelot, popularity,
+                image_url, tunebat_url, spotify_url, songstats_url, searched_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            rows,
+        )

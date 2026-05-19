@@ -14,8 +14,9 @@ def create_playwright_context(playwright: Playwright, headless: bool = HEADLESS)
     Nutzt einen absoluten Pfad für das Profil, um Konflikte zu vermeiden.
     """
     # WHY: Absoluter Pfad ist sicherer gegen CWD-Wechsel.
-    # 4 Ebenen hoch: browser/ -> genius/ -> beatbase/ -> src/
-    base_dir = Path(__file__).resolve().parents[3]
+    # parents[4] = src/, dann ../ via PROFILE_DIR aufs Repo-Root.
+    # browser/ -> genius/ -> extractor/ -> beatbase/ -> src/
+    base_dir = Path(__file__).resolve().parents[4]
     profile_dir = str(base_dir / PROFILE_DIR)
 
     # Wir reduzieren die Flags auf das Minimum, um Inkompatibilitäten zu vermeiden

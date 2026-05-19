@@ -7,8 +7,9 @@ from beatbase.extractor.tunebat.config import PROFILE_DIR, USE_STEALTH, USER_AGE
 
 
 def create_browser_context(p: Playwright, headless: bool = False) -> BrowserContext:
-    # 4 Ebenen hoch: browser/ -> tunebat/ -> beatbase/ -> src/
-    base_dir = Path(__file__).resolve().parents[3]
+    # parents[4] = src/, dann ../ via PROFILE_DIR aufs Repo-Root.
+    # browser/ -> tunebat/ -> extractor/ -> beatbase/ -> src/
+    base_dir = Path(__file__).resolve().parents[4]
     profile_dir = str(base_dir / PROFILE_DIR)
 
     context = p.chromium.launch_persistent_context(

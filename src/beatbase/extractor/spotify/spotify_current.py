@@ -49,7 +49,10 @@ def get_current_spotify_track() -> dict | None:
         return None
 
     if current_track is not None and current_track.get("is_playing"):
-        item = current_track["item"]
+        # WHY: Bei Ads/Podcasts kann is_playing=True trotzdem item=None liefern.
+        item = current_track.get("item")
+        if item is None:
+            return None
         return {
             "id": item["id"],
             "song": item["name"],

@@ -11,8 +11,9 @@ def create_browser_context(p: Playwright, headless: bool = False) -> BrowserCont
     um Captchas zu vermeiden und Session-Cookies zu erhalten.
     Nicht löschen!
     """
-    # 4 Ebenen hoch: browser/ -> songstats/ -> beatbase/ -> src/ -> <root>
-    profile_dir = str(Path(__file__).resolve().parents[4] / ".profiles" / "songstats_profile")
+    # parents[5] = Repo-Root.
+    # browser/ -> songstats/ -> extractor/ -> beatbase/ -> src/ -> <root>
+    profile_dir = str(Path(__file__).resolve().parents[5] / ".profiles" / "songstats_profile")
     return p.chromium.launch_persistent_context(
         user_data_dir=profile_dir,
         headless=headless,

@@ -4,6 +4,7 @@ from beatbase.extractor.songstats.config import MATCH_THRESHOLD
 from beatbase.shared.config import SONGSTATS_URL
 from beatbase.shared.utils.cookie_manager import wait_for_and_dismiss_cookies
 from beatbase.shared.utils.log import log_status
+from beatbase.shared.utils.playwright_errors import is_browser_closed_error
 from beatbase.shared.utils.validator import calculate_validation_score
 
 
@@ -52,6 +53,11 @@ def find_song_profile(page, queries: list[str], target_string: str, artists: lis
             if best_candidate and max_score > MATCH_THRESHOLD:
                 best_candidate.click()
                 return True
-        except Exception:
-            pass
+        except Exception as e:
+            # WHY: Browser-Crashes muessen den Pool-Worker erreichen, damit er den
+            # Browser neu hochzieht. Echte Scraper-Fehler (Timeout, missing
+            # Element) loggen und mit der naechsten Query weitermachen.
+            if is_browser_closed_error(e):
+                raise
+            log_status(f"  ⚠️ Songstats-Query '{query}' fehlgeschlagen: {e}")
     return False
