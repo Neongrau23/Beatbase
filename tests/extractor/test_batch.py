@@ -8,6 +8,16 @@ import pytest
 from beatbase.extractor import batch, search_queue
 
 
+@pytest.fixture(autouse=True)
+def _disable_parallel(monkeypatch):
+    """Diese Tests treffen die Orchestrierungs-Logik von ``run()`` und
+    monkeypatchen ``batch.handle_new_track`` — wir schalten daher den
+    parallelen Dispatch ab, damit derselbe Pfad genommen wird. Der
+    parallele Pfad hat eigene Tests.
+    """
+    monkeypatch.setattr(batch, "BATCH_PARALLEL", False)
+
+
 @pytest.fixture
 def db_path(tmp_path, monkeypatch) -> Path:
     """Frische search_queue.db pro Test."""

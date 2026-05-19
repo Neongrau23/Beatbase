@@ -27,6 +27,33 @@ ENABLE_SONGSTATS = True
 ENABLE_TUNEBAT = True
 ENABLE_SONGBPM = True
 
+# Batch-Modus: parallele 2-Phasen-Pipeline (Tunebat solo, danach
+# Songstats/Genius/SongBPM in Threads). Auf False setzen, um sequenziell zu fahren.
+BATCH_PARALLEL = True
+
+# Headless-Default fuer den Batch-Modus. Mehrere sichtbare Browser
+# gleichzeitig sind im Backfill meist nervig (Fokusklau). Zum Debuggen
+# (Tunebat-Bot-Detection, Captchas) auf False setzen.
+BATCH_HEADLESS = False
+
+# Wartezeit (Sekunden) bevor ein gecrashter Extraktor in-process einmal wiederholt wird.
+BATCH_RETRY_DELAY_SECONDS = 5.0
+
+# Browser-Pool: die 4 Browser pro Quelle einmal am Anfang des Batches oeffnen,
+# alle Tracks darueber abarbeiten, am Ende sauber schliessen. Spart pro Track
+# den Browser-Startup (~10-15s gesamt) und haelt das persistente Profil "warm".
+# Greift nur wenn BATCH_PARALLEL=True ist; sonst aktueller Pfad.
+BATCH_REUSE_BROWSERS = True
+
+# Auto-Recycle des Pools: Nach so vielen Tracks werden alle Browser geschlossen
+# und neu hochgezogen — Memory-Hygiene fuer lange Laeufe. 0 = nie recyceln.
+BATCH_RECYCLE_AFTER = 50
+
+# Maximale Anzahl Versuche, wenn der Browser eines Workers crasht (TargetClosedError).
+# Bei jedem Versuch wird der Browser neu hochgezogen, die Suche wiederholt.
+# 0 = deaktiviert (einmal versuchen, sofort 'fail:' wenn Crash).
+BATCH_CRASH_MAX_RETRIES = 3
+
 # Tunebat-Suchergebnisse: HTML-Dateien speichern?
 SAVE_TUNEBAT_HTML = True
 

@@ -1,6 +1,8 @@
 """Unit-Tests fuer den globalen Hotline-Bus."""
 
-from beatbase.extractor.hotline import bus
+import threading
+
+from beatbase.extractor.hotline import Hotline, bus
 
 
 def test_set_and_get_returns_value():
@@ -65,3 +67,80 @@ def test_can_store_any_value_type():
     assert bus.get("s", "list_val") == [1, 2, 3]
     assert bus.get("s", "dict_val") == {"nested": True}
     assert bus.get("s", "none_val") is None
+
+
+def test_get_all_returns_copy_not_reference():
+    """get_all darf keine Referenz auf die interne Struktur leaken,
+    sonst koennte ein paralleler Schreiber waehrend Iteration crashen.
+    """
+    bus.set("spotify", "id", "abc")
+    snapshot = bus.get_all()
+    snapshot["spotify"]["id"] = "manipuliert"
+    snapshot["new_source"] = {"foo": "bar"}
+    assert bus.get("spotify", "id") == "abc"
+    assert bus.get("new_source", "foo", default=None) is None
+
+
+def test_concurrent_set_does_not_lose_writes():
+    """Mehrere Threads schreiben unter unterschiedlichen Source-Keys —
+    am Ende muessen alle Werte vorhanden sein.
+    """
+    local_bus = Hotline()
+    iterations = 200
+    thread_count = 4
+
+    def writer(source: str) -> None:
+        for i in range(iterations):
+            local_bus.set(source, f"key{i}", i)
+
+    threads = [
+        threading.Thread(target=writer, args=(f"src{n}",)) for n in range(thread_count)
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    snapshot = local_bus.get_all()
+    assert len(snapshot) == thread_count
+    for n in range(thread_count):
+        assert len(snapshot[f"src{n}"]) == iterations
+        assert snapshot[f"src{n}"][f"key{iterations - 1}"] == iterations - 1
+
+
+def test_concurrent_read_during_write_is_safe():
+    """Reader-Threads duerfen waehrend paralleler Writes nicht crashen
+    (z. B. ``RuntimeError: dictionary changed size during iteration``).
+    """
+    local_bus = Hotline()
+    stop = threading.Event()
+    errors: list[Exception] = []
+
+    def writer() -> None:
+        i = 0
+        while not stop.is_set():
+            local_bus.set("src", f"key{i}", i)
+            i += 1
+
+    def reader() -> None:
+        try:
+            while not stop.is_set():
+                snap = local_bus.get_all()
+                # Iterieren — soll niemals crashen, auch wenn writer parallel arbeitet.
+                for _src, data in snap.items():
+                    for _k, _v in data.items():
+                        pass
+        except Exception as e:
+            errors.append(e)
+
+    writers = [threading.Thread(target=writer) for _ in range(2)]
+    readers = [threading.Thread(target=reader) for _ in range(2)]
+    for t in writers + readers:
+        t.start()
+
+    threading.Event().wait(0.3)
+    stop.set()
+    for t in writers + readers:
+        t.join()
+
+    assert not errors, f"Reader-Threads sind gecrashed: {errors}"

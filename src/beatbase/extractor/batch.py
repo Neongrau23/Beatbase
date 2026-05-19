@@ -14,7 +14,15 @@ import csv
 from pathlib import Path
 
 from beatbase.extractor import search_queue
+from beatbase.extractor.browser_pool import BrowserPool
 from beatbase.extractor.orchestrator import handle_new_track
+from beatbase.extractor.parallel import handle_new_track_parallel
+from beatbase.shared.config import (
+    BATCH_HEADLESS,
+    BATCH_PARALLEL,
+    BATCH_RECYCLE_AFTER,
+    BATCH_REUSE_BROWSERS,
+)
 from beatbase.shared.utils.log import log_status
 
 
@@ -74,32 +82,66 @@ def run(headless: bool = False, limit: int | None = None) -> None:
     if not pending:
         return
 
-    for idx, row in enumerate(pending, 1):
-        artists = [a.strip() for a in row["artist"].split(";") if a.strip()]
-        track = {
-            "id": row["track_id"],
-            "song": row["song"],
-            "artists": artists,
-            "isrc": row["isrc"],
-            "release_date": row["release_date"],
-            "spotify_url": None,
-        }
-        log_status(
-            f"\n=== [{idx}/{len(pending)}] {track['song']} — {', '.join(artists)} ==="
-        )
-        try:
-            statuses = handle_new_track(track, headless=headless)
-        except Exception as e:
-            log_status(f"❌ Track {track['id']} crashed: {e}")
-            # WHY: nur die noch nicht terminalen Quellen als fail markieren — ein
-            # vorher schon erfolgreicher 'ok' soll nicht ueberschrieben werden.
-            statuses = {
-                src: f"fail: {type(e).__name__}: {e}"
-                for src in search_queue.SOURCES
-                if row.get(f"{src}_status") is None
+    # WHY: Im parallelen Pfad oeffnen 3 Worker gleichzeitig Browser — der
+    # Default ueber ``BATCH_HEADLESS`` ist daher headless. Im sequenziellen
+    # Pfad bleibt der vom CLI uebergebene headless-Wert unveraendert.
+    run_track = handle_new_track_parallel if BATCH_PARALLEL else handle_new_track
+    effective_headless = BATCH_HEADLESS if BATCH_PARALLEL else headless
+    use_pool = BATCH_PARALLEL and BATCH_REUSE_BROWSERS
+    log_status(
+        f"⚙️  Modus: {'parallel (3 Worker)' if BATCH_PARALLEL else 'sequenziell'}"
+        f", headless={effective_headless}"
+        f", pool={'an' if use_pool else 'aus'}"
+    )
+
+    pool: BrowserPool | None = None
+    if use_pool:
+        pool = BrowserPool(headless=effective_headless)
+        pool.start()
+
+    try:
+        for idx, row in enumerate(pending, 1):
+            artists = [a.strip() for a in row["artist"].split(";") if a.strip()]
+            track = {
+                "id": row["track_id"],
+                "song": row["song"],
+                "artists": artists,
+                "isrc": row["isrc"],
+                "release_date": row["release_date"],
+                "spotify_url": None,
             }
-        if statuses:
-            search_queue.update_statuses(track["id"], statuses)
+            log_status(
+                f"\n=== [{idx}/{len(pending)}] {track['song']} — {', '.join(artists)} ==="
+            )
+            try:
+                if pool is not None:
+                    statuses = run_track(track, headless=effective_headless, pool=pool)
+                else:
+                    statuses = run_track(track, headless=effective_headless)
+            except Exception as e:
+                log_status(f"❌ Track {track['id']} crashed: {e}")
+                # WHY: nur die noch nicht terminalen Quellen als fail markieren — ein
+                # vorher schon erfolgreicher 'ok' soll nicht ueberschrieben werden.
+                statuses = {
+                    src: f"fail: {type(e).__name__}: {e}"
+                    for src in search_queue.SOURCES
+                    if row.get(f"{src}_status") is None
+                }
+            if statuses:
+                search_queue.update_statuses(track["id"], statuses)
+
+            # Auto-Recycle: Pool nach BATCH_RECYCLE_AFTER Tracks neu hochziehen.
+            # 0 = nie. Greift nur, wenn ein Pool aktiv ist.
+            if (
+                pool is not None
+                and BATCH_RECYCLE_AFTER > 0
+                and idx % BATCH_RECYCLE_AFTER == 0
+                and idx < len(pending)
+            ):
+                pool.recycle()
+    finally:
+        if pool is not None:
+            pool.shutdown()
 
 
 # DEF: Erst 'fail:%' zuruecksetzen, dann run()
