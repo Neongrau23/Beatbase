@@ -3,7 +3,7 @@ from pathlib import Path
 from playwright.sync_api import BrowserContext, Playwright
 from playwright_stealth import Stealth
 
-from beatbase.extractor.tunebat.config import PROFILE_DIR, USER_AGENT
+from beatbase.extractor.tunebat.config import PROFILE_DIR, USE_STEALTH, USER_AGENT
 
 
 def create_browser_context(p: Playwright, headless: bool = False) -> BrowserContext:
@@ -25,6 +25,7 @@ def create_browser_context(p: Playwright, headless: bool = False) -> BrowserCont
         ],
     )
 
-    stealth = Stealth()
-    context.on("page", lambda page: stealth.apply_stealth_sync(page))
+    if USE_STEALTH:
+        stealth = Stealth()
+        context.on("page", lambda page: stealth.apply_stealth_sync(page))
     return context
