@@ -84,10 +84,28 @@ Alles, was Daten von externen Quellen einsammelt und zu einer fertigen Master-Vi
 Alternative zum Spotify-Polling für Backfill-Szenarien (Playlist, DJ-Set, Bestands­anreicherung). Eigene Tracking-DB `data/search_queue.db` mit Status pro Quelle:
 
 - `add`: CSV einlesen (`id,song,artist[,isrc,release_date]`, `;` trennt mehrere Künstler, leere `id` wird via `search_queue.generate_id` zu einem 22-stelligen MD5-Hash).
-- `run`: alle Tracks mit mindestens einer `NULL`-Status-Spalte durch `handle_new_track()` schicken (gleiche Pipeline wie der Watcher, gleicher Queue/Importer-Pfad nach `songs.db`).
+- `run`: alle Tracks mit mindestens einer `NULL`-Status-Spalte durch die Pipeline schicken (gleicher Queue/Importer-Pfad nach `songs.db` wie der Watcher).
 - `retry [--source X]`: setzt `fail:%`-Statuus auf `NULL` zurück und ruft `run` auf. `no_match` bleibt unangetastet — Tracks, die in einer Quelle wirklich nicht existieren, werden nicht endlos retryed.
 
-`_run_extractor()` in `orchestrator.py` liefert `"ok"` / `"no_match"` / `"fail: <Klasse>: <msg>"`; `handle_new_track()` (ehemals `_handle_new_track`) gibt `dict[str, str]` zurück. Der Spotify-Watcher ignoriert den Return einfach.
+`_run_extractor()` in `orchestrator.py` liefert `"ok"` / `"no_match"` / `"fail: <Klasse>: <msg>"`; `handle_new_track()` / `handle_new_track_parallel()` geben `dict[str, str]` zurück. Der Spotify-Watcher ignoriert den Return einfach.
+
+**Pipeline-Auswahl in `batch.run()`:**
+
+- `BATCH_PARALLEL=True` (Default): nutzt `extractor/parallel.py::handle_new_track_parallel` mit 2-Phasen-Pipeline:
+  1. **Phase 1** (sequenziell): Tunebat solo, damit `songstats_url` (Cross-Extractor-Optimierung via `direct_url_from`) in der Hotline landet.
+  2. **Phase 2** (parallel, `ThreadPoolExecutor(max_workers=3)`): Songstats, Genius, SongBPM.
+  3. Sammelstelle wie bisher (`callcenter.build_song_summary()` → `write_to_queue()` → `process_queue()`) — erst wenn alle Phase-2-Futures fertig sind.
+- `BATCH_PARALLEL=False`: sequenziell wie der Watcher (`orchestrator.handle_new_track`).
+
+**In-Process-Retry** in beiden Phasen: liefert ein Extraktor `"fail: ..."`, wird er einmal nach `BATCH_RETRY_DELAY_SECONDS` (Default 5s) erneut versucht. `"no_match"` und `"ok"` werden nicht wiederholt.
+
+**Browser-Pool** (`BATCH_REUSE_BROWSERS=True`, Default an) in `extractor/browser_pool.py`:
+
+- Pro Quelle laeuft ein dedizierter Worker-Thread mit eigener `sync_playwright()`-Instanz (Thread-Affinitaet). Der Browser bleibt ueber den ganzen Batch-Lauf offen — kein Browser-Startup pro Track.
+- `ExtractorWorker.submit(track) -> Future`: Tasks werden FIFO in der Queue des Workers abgelegt, Ergebnis kommt via `Future` zurueck.
+- `BrowserPool.recycle()` nach `BATCH_RECYCLE_AFTER` Tracks (Default 50): alle Browser sauber zu, neu hochziehen — Memory-Hygiene fuer lange Laeufe. `0` deaktiviert das Recycle.
+- **Crash-Recovery**: Schmeisst ein Extraktor `TargetClosedError` (siehe `shared/utils/playwright_errors.py`), zieht der Worker den Browser bis zu `BATCH_CRASH_MAX_RETRIES` Mal (Default 3) neu hoch und wiederholt die Suche. Andere Exceptions werden weiterhin als `"fail:"` durchgereicht.
+- Profile-Lock-Konflikt: Watcher und Batch duerfen **nicht gleichzeitig** dasselbe persistente Profil benutzen.
 
 ### Lager: `data/queue/`
 Ein Verzeichnis voller fertiger Song-JSONs (`{track_id}.json`). Die einzige Schnittstelle zwischen Standort 1 und 2. Wenn der Processor offline ist, stauen sich JSONs hier auf, bis er wieder läuft. Erfolgreich importierte JSONs wandern in `data/json/`.
@@ -132,8 +150,8 @@ Alle Browser-Extraktoren nutzen **Playwright Chromium** mit persistenten Profile
 - **Spotify** (`extractor/spotify/`): Reine HTTP-Requests via `spotipy`, OAuth-Token in `data/.spotify_cache`.
 - **Songstats** (`extractor/songstats/`): Playwright + BeautifulSoup. Extrahiert Highcharts-SVG-Daten via Mausbewegungen auf Koordinaten, da die SVGs keine semantischen Klassen haben. Fokus liegt aktuell auf der `Overview`-Sektion (`scraper/overview.py`).
 - **Genius** (`extractor/genius/`): **Playwright** (nicht mehr Selenium) + BeautifulSoup. Extrahiert Lyrics, Album-Tracklist und Credits.
-- **Tunebat** (`extractor/tunebat/`): Playwright + **`playwright-stealth`** für Bot-Detection-Umgehung. Liefert BPM, Key, Camelot, Audio-Features. Findet zusätzlich Direktlinks zu Songstats und legt sie für den nächsten Extraktor ab. Bei hartnäckiger Bot-Detection: `python -m beatbase.extractor.tunebat.browser.warm_profile` ausführen, um das Profil mit Klick- und Scroll-Aktivität anzureichern.
-- **SongBPM** (`extractor/songbpm/`): Playwright + BeautifulSoup. Liefert die "Vibe"-Beschreibung des Tracks.
+- **Tunebat** (`extractor/tunebat/`): Playwright + **`playwright-stealth`** für Bot-Detection-Umgehung (via `USE_STEALTH`-Toggle in `tunebat/config.py` abschaltbar — bei einem echten/warmen Chrome-Profil ist Stealth eher kontraproduktiv). Liefert BPM, Key, Camelot, Audio-Features. Findet zusätzlich Direktlinks zu Songstats und legt sie für den nächsten Extraktor ab. Bei hartnäckiger Bot-Detection: `python -m beatbase.extractor.tunebat.browser.warm_profile` ausführen, um das Profil mit Klick- und Scroll-Aktivität anzureichern.
+- **SongBPM** (`extractor/songbpm/`): Playwright + BeautifulSoup mit persistentem Profil (`.profiles/songbpm_profile`). Liefert die "Vibe"-Beschreibung des Tracks.
 
 Jeder Browser-Extraktor folgt dem Submodul-Pattern:
 - `browser/context.py` — Playwright-Kontext-Setup mit persistentem Profil
@@ -147,6 +165,7 @@ Jeder Browser-Extraktor folgt dem Submodul-Pattern:
 - `shared/utils/cookie_manager.py::wait_for_and_dismiss_cookies()`: Zentrales Cookie-Banner-Handling für alle Browser-Extraktoren (OneTrust, deutsche/englische Buttons).
 - `shared/utils/validator.py::calculate_validation_score()`: Zentrales Fuzzy-Matching-Scoring (`difflib` + Artist-Bonus + Remix-Bonus) für Suchergebnisbewertung.
 - `shared/utils/log.py::log_status()`: Schreibt nach **stderr**. Stdout bleibt frei für die strukturierten JSON-Ausgaben der CLIs — wichtig, wenn die CLIs gepiped werden. Nutze `log_status()`, kein `print()`, für Statusmeldungen.
+- `shared/utils/playwright_errors.py::is_browser_closed_error()`: Erkennt `TargetClosedError` plus generische `PlaywrightError`-Messages mit "Target page, context or browser has been closed". Wird in den `search_on_*`-Funktionen genutzt, um Browser-Crashes vom Pool-Worker abfangen zu lassen statt sie als `no_match` zu interpretieren.
 
 ## Code-Konventionen
 
@@ -177,7 +196,10 @@ Jeder Browser-Extraktor folgt dem Submodul-Pattern:
 ## Konfiguration
 
 - `.env` im Projektroot: `SPOTIPY_CLIENT_ID`, `SPOTIPY_CLIENT_SECRET`, optional `SPOTIPY_REDIRECT_URI`.
-- `src/beatbase/shared/config.py`: Watcher-, IPC- und alle Pfad-Defaults (`POLLING_INTERVAL`, `IPC_MODE`, `WATCHER_HEADLESS`, `SENTINEL_NONE`, `ENABLE_*`-Toggles, `DATA_DIR`, `QUEUE_DIR`, `JSON_EXPORT_DIR`, `SONGS_DB_PATH`, `SEARCH_QUEUE_DB_PATH`, `TUNEBAT_SEARCHES_DB_PATH`, `TUNEBAT_SEARCHES_HTML_DIR`, `GENIUS_DB_PATH`, `SPOTIFY_CACHE_PATH`, `PID_FILE_PATH`, `SAVE_TUNEBAT_HTML`, Quellen-URLs).
-- `src/beatbase/extractor/{songstats,genius,tunebat}/config.py`: Quellen-spezifische Konstanten (`MATCH_THRESHOLD`, `PROFILE_DIR`, `USER_AGENT`, Timeouts, Headless-Default).
+- `src/beatbase/shared/config.py`: Watcher-, IPC-, Batch- und alle Pfad-Defaults.
+  - Watcher/IPC: `POLLING_INTERVAL`, `IPC_MODE`, `WATCHER_HEADLESS`, `SENTINEL_NONE`, `ENABLE_*`-Toggles.
+  - Batch-Modus: `BATCH_PARALLEL` (2-Phasen-Pipeline an/aus), `BATCH_HEADLESS` (Headless im Batch-Pfad), `BATCH_RETRY_DELAY_SECONDS` (Wartezeit fuer In-Process-Retry), `BATCH_REUSE_BROWSERS` (Browser-Pool an/aus), `BATCH_RECYCLE_AFTER` (Auto-Recycle nach N Tracks), `BATCH_CRASH_MAX_RETRIES` (Browser-Restart-Versuche bei `TargetClosedError`).
+  - Pfade: `DATA_DIR`, `QUEUE_DIR`, `JSON_EXPORT_DIR`, `SONGS_DB_PATH`, `SEARCH_QUEUE_DB_PATH`, `TUNEBAT_SEARCHES_DB_PATH`, `TUNEBAT_SEARCHES_HTML_DIR`, `GENIUS_DB_PATH`, `SPOTIFY_CACHE_PATH`, `PID_FILE_PATH`, `SAVE_TUNEBAT_HTML`, Quellen-URLs.
+- `src/beatbase/extractor/{songstats,genius,tunebat}/config.py`: Quellen-spezifische Konstanten (`MATCH_THRESHOLD`, `PROFILE_DIR`, `USER_AGENT`, Timeouts, Headless-Default). Tunebat zusaetzlich `USE_STEALTH` (an/aus fuer `playwright-stealth`).
 - `BEATBASE_DATA_DIR` (Env-Var) → überschreibt den `data/`-Pfad für die Queue, JSON-Archive und lokalen DBs.
 - `BEATBASE_DB_PATH` (Env-Var oder `shared/config.py`-Default) → externer SQLite-Pfad für `processor/external_db.py`. Default `C:/workspace/beatbase/spotify.db`.
