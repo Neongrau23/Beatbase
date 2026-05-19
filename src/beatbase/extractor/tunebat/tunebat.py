@@ -22,6 +22,7 @@ from beatbase.extractor.tunebat.scraper.extractor import extract_song_data
 from beatbase.shared.config import SENTINEL_NONE
 from beatbase.shared.now_playing import read_now_playing_data
 from beatbase.shared.utils.log import log_status
+from beatbase.shared.utils.playwright_errors import is_browser_closed_error
 from beatbase.shared.utils.search_variations import (
     extract_featured_artists,
     generate_tunebat_variations,
@@ -115,6 +116,8 @@ def search_on_tunebat(
         try:
             return _execute_tunebat_search(page, song, artists, queries, target_string)
         except Exception as e:
+            if is_browser_closed_error(e):
+                raise
             log_status(f"❌ Fehler bei Tunebat: {e}")
             return None
 
@@ -124,6 +127,8 @@ def search_on_tunebat(
         try:
             return _execute_tunebat_search(new_page, song, artists, queries, target_string)
         except Exception as e:
+            if is_browser_closed_error(e):
+                raise
             log_status(f"❌ Fehler bei Tunebat: {e}")
             return None
         finally:

@@ -13,6 +13,7 @@ from beatbase.extractor.songstats.browser.context import create_browser_context
 from beatbase.extractor.songstats.scraper.coordinator import run_songstats_extraction
 from beatbase.shared.now_playing import read_now_playing_data
 from beatbase.shared.utils.log import log_status
+from beatbase.shared.utils.playwright_errors import is_browser_closed_error
 
 
 # DEF: Songstats-Suche (eigene Browser-Lifecycle)
@@ -44,6 +45,8 @@ def search_on_songstats(
                 return results
             return None
         except Exception as e:
+            if is_browser_closed_error(e):
+                raise
             log_status(f"❌ Songstats Fehler: {e}")
             return None
 
@@ -58,6 +61,8 @@ def search_on_songstats(
                 return results
             return None
         except Exception as e:
+            if is_browser_closed_error(e):
+                raise
             log_status(f"❌ Songstats Fehler: {e}")
             return None
         finally:

@@ -35,6 +35,7 @@ from beatbase.shared.config import (
 )
 from beatbase.shared.now_playing import clear_now_playing, write_now_playing
 from beatbase.shared.utils.log import log_status
+from beatbase.shared.utils.playwright_errors import is_browser_closed_error
 
 
 # SECTION: PIPELINE - Deklarative Extraktor-Konfiguration
@@ -166,6 +167,11 @@ def _run_extractor(spec: ExtractorSpec, track: dict, page, headless: bool) -> st
             bus.set(spec.name, k, v)
         return "ok"
     except Exception as e:
+        # WHY: Browser-Closed-Fehler durchbrechen — der Pool-Worker erkennt sie
+        # und faehrt den Browser neu hoch + retried. Andere Exceptions sind
+        # echte Scraper-Probleme, die als 'fail:' an die Statuszeile gehen.
+        if is_browser_closed_error(e):
+            raise
         log_status(f"❌ {spec.label}-Fehler: {e}")
         return f"fail: {type(e).__name__}: {e}"
 

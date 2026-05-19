@@ -17,6 +17,7 @@ from beatbase.extractor.genius.scraper.extractor import extrahiere_song_details_
 from beatbase.shared.config import SENTINEL_NONE
 from beatbase.shared.now_playing import read_now_playing_data
 from beatbase.shared.utils.log import log_status
+from beatbase.shared.utils.playwright_errors import is_browser_closed_error
 from beatbase.shared.utils.search_variations import extract_featured_artists, generate_variations
 
 
@@ -90,6 +91,9 @@ def _execute_genius_search(
         return ergebnis_json
 
     except Exception as e:
+        # Browser-Closed-Fehler durchbrechen — Pool-Worker macht den Restart + Retry.
+        if is_browser_closed_error(e):
+            raise
         # Unerwartete Fehler abfangen und None zurückgeben
         log_status(f"❌ Fehler bei der Verarbeitung: {e}")
         return None

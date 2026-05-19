@@ -4,6 +4,7 @@ from beatbase.extractor.songstats.browser.navigator import find_song_profile
 from beatbase.extractor.songstats.scraper.overview import _extract_overview
 from beatbase.shared.utils.cookie_manager import wait_for_and_dismiss_cookies
 from beatbase.shared.utils.log import log_status
+from beatbase.shared.utils.playwright_errors import is_browser_closed_error
 from beatbase.shared.utils.search_variations import extract_featured_artists, generate_variations
 
 
@@ -36,6 +37,8 @@ def run_songstats_extraction(
             page.goto(direct_url, wait_until="networkidle")
             found = True
         except Exception as e:
+            if is_browser_closed_error(e):
+                raise
             log_status(f"⚠️ Direkter Link fehlgeschlagen: {e}")
             found = find_song_profile(page, queries, target_string, target_artists)
     else:
@@ -70,6 +73,8 @@ def run_songstats_extraction(
                 log_status("\n  ⚠️ Keine Daten in der Overview gefunden.")
 
         except Exception as e:
+            if is_browser_closed_error(e):
+                raise
             log_status(f"  ❌ Extraktions-Fehler: {e}")
     else:
         log_status("  ❌ Kein Treffer.")

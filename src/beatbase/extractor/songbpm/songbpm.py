@@ -15,6 +15,7 @@ from beatbase.shared.config import SENTINEL_NONE, SONGBPM_URL
 from beatbase.shared.now_playing import read_now_playing_data
 from beatbase.shared.utils.cookie_manager import wait_for_and_dismiss_cookies
 from beatbase.shared.utils.log import log_status
+from beatbase.shared.utils.playwright_errors import is_browser_closed_error
 
 
 # DEF: search_on_songbpm(query, headless) -> dict | None
@@ -63,6 +64,8 @@ def search_on_songbpm(
             return extract_song_info(song_links[0])
 
         except Exception as e:
+            if is_browser_closed_error(e):
+                raise
             log_status(f"❌ Fehler bei der SongBPM-Suche: {e}")
             return None
 
