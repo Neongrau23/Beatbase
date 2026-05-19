@@ -9,3 +9,9 @@ HEADLESS = True
 
 # Validation Constants
 MATCH_THRESHOLD = 0.8
+
+# CONFIG: Pro Artist-Profil "Show all songs" oeffnen und in genius.db sammeln.
+# WHY: Lyrics-Pfad ist schnell; die Artist-Sammlung kostet pro beteiligtem
+# Kuenstler einen Profil-Load + langes Scrollen. Auf False setzen, wenn nur
+# Lyrics/Credits gebraucht werden.
+COLLECT_ARTIST_SONGS = True

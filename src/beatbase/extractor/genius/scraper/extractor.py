@@ -7,14 +7,49 @@ from bs4 import BeautifulSoup
 from beatbase.shared.config import GENIUS_URL
 
 
+# DEF: Liest alle Artist-Profil-Links aus dem Song-Header
+def extract_artist_links_from_header(soup: BeautifulSoup) -> list[str]:
+    """Sammelt alle ``/artists/<Name>``-Links aus der SongHeader-CreditList.
+
+    Genius listet in ``<div class="SongHeader-desktop__CreditList ...">`` alle
+    beteiligten Kuenstler eines Songs auf — bei Solo-Tracks ein einzelner
+    Link, bei Collabs mehrere (verbunden durch ``&``-Textknoten).
+
+    Args:
+        soup: BeautifulSoup-Objekt der Genius-Song-Seite.
+
+    Returns:
+        Liste der absoluten Artist-Profil-URLs in DOM-Reihenfolge, ohne
+        Duplikate. Leere Liste, wenn der Container fehlt.
+    """
+    container = soup.find("div", class_=re.compile(r"SongHeader-desktop__CreditList", re.I))
+    if not container:
+        return []
+
+    seen: set[str] = set()
+    urls: list[str] = []
+    for link in container.find_all("a", href=re.compile(r"/artists/")):
+        href = link.get("href")
+        if not href:
+            continue
+        if not href.startswith("http"):
+            href = GENIUS_URL + href
+        if href in seen:
+            continue
+        seen.add(href)
+        urls.append(href)
+
+    return urls
+
+
 # DEF: Liest alle mini-song-cards auf der Artist-Songs-Seite
 def extract_artist_songs(soup: BeautifulSoup) -> list[dict]:
     """Extrahiert die komplette Songliste eines Künstler-Profils.
 
-    Die Genius-Artist-Songs-Seite (``<artist-songs>``-Komponente) rendert jede
-    Position als ``<mini-song-card>`` mit Titel, Subtitle (oft erneut der
-    Künstlername), Thumbnail-URL im inline ``background-image`` und einem
-    ``<a>``-Element auf die Lyrics-Seite.
+    Wird auf der Seite genutzt, die nach Klick auf "Show all songs" im
+    Artist-Profil rendert — dort kommen die Karten als ``<mini-song-card>``
+    mit Titel, Subtitle, Thumbnail-URL im inline ``background-image`` und
+    einem ``<a>``-Element auf die Lyrics-Seite.
 
     Args:
         soup: BeautifulSoup-Objekt der Artist-Songs-Seite.

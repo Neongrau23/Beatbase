@@ -4,7 +4,7 @@ import re
 import time
 
 from bs4 import BeautifulSoup
-from playwright.sync_api import Page
+from playwright.sync_api import BrowserContext, Page
 
 from beatbase.extractor.genius.config import MATCH_THRESHOLD, PAGE_LOAD_SLEEP
 from beatbase.extractor.genius.scraper.extractor import extract_artist_songs
@@ -18,6 +18,10 @@ from beatbase.shared.utils.validator import calculate_validation_score
 MAX_ARTIST_SONG_SCROLLS = 50
 # Anzahl aufeinanderfolgender Scrolls ohne neue Karten, bevor wir abbrechen.
 SCROLL_STAGNATION_LIMIT = 3
+# Maximale Anzahl Such-Queries, die wir nacheinander durchprobieren.
+MAX_SEARCH_QUERIES = 3
+# Score, ab dem wir die Query-Schleife sofort abbrechen.
+EARLY_EXIT_SCORE = 0.95
 
 
 # DEF: Scrollt die Artist-Songs-Seite bis ans Ende und sammelt alle Karten
@@ -50,133 +54,181 @@ def _scroll_collect_artist_songs(page: Page) -> list[dict]:
     return songs
 
 
-# DEF: Sucht Song-URL über Künstler-Profil und sammelt die komplette Songliste
+# DEF: Tippt Query in die Suchbox und drueckt Enter
+def _submit_search(page: Page, query: str) -> None:
+    """Leert die Suchbox und sendet die naechste Query ab."""
+    search_box = page.get_by_role("textbox", name="Search lyrics & more")
+    search_box.click()
+    search_box.fill("")
+    search_box.fill(query)
+    search_box.press("Enter")
+
+
+# DEF: Bewertet die Song-Cards der Suchergebnis-Seite
+def _best_song_card(
+    soup: BeautifulSoup, target_string: str, artists: list[str]
+) -> tuple[str | None, float]:
+    """Liefert die beste Song-URL aus den Treffern plus deren Score."""
+    best_link: str | None = None
+    max_score = 0.0
+
+    cards = soup.select("mini-song-card a.mini_card")
+    for card in cards:
+        title_elem = card.select_one(".mini_card-title")
+        subtitle_elem = card.select_one(".mini_card-subtitle")
+        if not title_elem:
+            continue
+
+        title_text = title_elem.get_text(strip=True)
+        subtitle_text = subtitle_elem.get_text(strip=True) if subtitle_elem else ""
+        compare_text = f"{title_text} {subtitle_text}"
+        score: float = calculate_validation_score(compare_text, target_string, artists)
+
+        if score > max_score:
+            max_score = score
+            href = card.get("href")
+            if href:
+                best_link = href if href.startswith("http") else GENIUS_URL + href
+
+    return best_link, max_score
+
+
+# DEF: Sucht den Song direkt ueber Genius' Suche (Song-Card Treffer)
+def _find_song_in_search_results(
+    page: Page,
+    queries: list[str],
+    target_string: str,
+    artists: list[str],
+) -> str | None:
+    """Probiert mehrere ``song artist``-Queries und liefert die beste Song-URL.
+
+    Args:
+        page: Aktive Playwright-Page (bringt eigenen Context mit).
+        queries: Reihenfolge der Suchstrings (aus ``generate_variations``).
+        target_string: Normalisierter Vergleichsstring fuer das Scoring.
+        artists: Beteiligte Kuenstler (fuer den Artist-Bonus im Score).
+
+    Returns:
+        Vollstaendige Song-URL oder ``None``, wenn keine Query > ``MATCH_THRESHOLD``
+        gepunktet hat.
+    """
+    if not queries:
+        return None
+
+    # Genius oeffnen + Cookie-Banner einmalig.
+    page.goto(GENIUS_URL)
+    wait_for_and_dismiss_cookies(page)
+
+    best_overall_link: str | None = None
+    best_overall_score = 0.0
+
+    for query in queries[:MAX_SEARCH_QUERIES]:
+        log_status(f"  🔍 Genius-Suche: '{query}'")
+        try:
+            _submit_search(page, query)
+            page.wait_for_selector("search-result-section", timeout=10000)
+            # WHY: Suche rendert mini-song-card lazy — kurz warten.
+            page.wait_for_selector("mini-song-card a.mini_card", timeout=5000)
+        except Exception as e:
+            log_status(f"    ⚠️ Keine Suchergebnisse fuer '{query}': {e}")
+            continue
+
+        soup = BeautifulSoup(page.content(), "html.parser")
+        link, score = _best_song_card(soup, target_string, artists)
+        log_status(f"    📊 Bester Treffer-Score: {score:.2f}")
+
+        if link and score > best_overall_score:
+            best_overall_link = link
+            best_overall_score = score
+
+        if best_overall_score >= EARLY_EXIT_SCORE:
+            break
+
+    if best_overall_link and best_overall_score > MATCH_THRESHOLD:
+        log_status(
+            f"  ✅ Song-URL: {best_overall_link} (Score {best_overall_score:.2f})"
+        )
+        return best_overall_link
+
+    log_status(
+        f"  ❌ Kein ausreichender Treffer (max Score {best_overall_score:.2f})."
+    )
+    return None
+
+
+# DEF: Oeffnet pro Artist eine neue Page und sammelt alle Songs
+def collect_songs_for_artists(
+    context: BrowserContext, artist_urls: list[str]
+) -> list[dict]:
+    """Sequenzielle Sammlung aller Songs aller beteiligten Kuenstler.
+
+    Pro Artist-Profil-URL: neue Page oeffnen, Profil laden, "Show all songs"
+    klicken und mit ``_scroll_collect_artist_songs`` durchscrollen. Fehler
+    einer Artist-Seite stoppen die Gesamtsammlung nicht.
+    """
+    aggregated: list[dict] = []
+    seen_urls: set[str] = set()
+
+    for artist_url in artist_urls:
+        log_status(f"  👤 Artist-Profil: {artist_url}")
+        new_page = context.new_page()
+        try:
+            new_page.goto(artist_url)
+            wait_for_and_dismiss_cookies(new_page)
+
+            try:
+                all_songs_link = new_page.get_by_role(
+                    "link", name=re.compile("Show all songs", re.I)
+                )
+                all_songs_link.click(timeout=10000)
+            except Exception as e:
+                log_status(f"    ⚠️ 'Show all songs' nicht klickbar: {e}")
+                continue
+
+            try:
+                new_page.wait_for_selector("mini-song-card, .mini_card", timeout=10000)
+            except Exception:
+                log_status("    ⚠️ Keine Songkarten auf der Artist-Songs-Seite.")
+                continue
+
+            songs = _scroll_collect_artist_songs(new_page)
+            for song in songs:
+                url = song.get("url")
+                if not url or url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                aggregated.append(song)
+        except Exception as e:
+            log_status(f"    ⚠️ Artist-Seite fehlgeschlagen ({artist_url}): {e}")
+        finally:
+            new_page.close()
+
+    return aggregated
+
+
+# DEF: Findet die Song-URL ueber kombinierten Song+Artist-Query
 def find_song_url(
     page: Page,
     queries: list[str],
     target_string: str,
     artists: list[str],
-) -> dict:
-    """Sucht auf Genius den Künstler, findet den passenden Song und sammelt die Songliste.
+) -> str | None:
+    """Liefert die Genius-Song-URL fuer den passenden Treffer oder ``None``.
 
-    Args:
-        page: Ein aktives Playwright Page-Objekt.
-        queries: Liste der Suchstrings.
-        target_string: Der zusammengesetzte Zielstring zur Validierung.
-        artists: Liste der beteiligten Künstler (erster ist der Haupt-Künstler).
-
-    Returns:
-        Dict mit den Keys ``song_url`` (vollständige URL oder ``None``) und
-        ``artist_songs`` (Liste aller Songs der Artist-Songs-Seite; leer wenn
-        der Künstler nicht gefunden wurde).
+    Die fruehere Artist-Profil-Suche wurde ersetzt: Wir tippen ``song artist``
+    direkt in die Suche und waehlen die beste Song-Card. Artist-Songs werden
+    danach separat ueber ``collect_songs_for_artists`` aus den Header-Links
+    der Song-Seite gesammelt.
     """
-    result: dict = {"song_url": None, "artist_songs": []}
-
-    if not artists:
-        log_status("  ⚠️ Keine Künstler für die Suche angegeben.")
-        return result
-
-    main_artist = artists[0]
-    song_name = queries[0] if queries else ""
-    log_status(f"  🔍 Präzise Profil-Suche: '{main_artist}' -> '{song_name}'")
+    if not queries:
+        log_status("  ⚠️ Keine Such-Queries generiert.")
+        return None
 
     try:
-        # STEP 1: Suche nach dem Künstler
-        page.goto(GENIUS_URL)
-
-        # Zentrales Cookie-Management nutzen
-        wait_for_and_dismiss_cookies(page)
-
-        search_box = page.get_by_role("textbox", name="Search lyrics & more")
-        search_box.click()
-        search_box.fill(main_artist)
-        search_box.press("Enter")
-
-        # STEP 2: Identifiziere den Künstler über <mini-artist-card>
-        # Wir warten darauf, dass die Resultate-Sektion geladen wird
-        page.wait_for_selector("search-result-section", timeout=10000)
-
-        # Wir suchen alle mini-artist-cards
-        artist_cards = page.locator("mini-artist-card").all()
-        target_profile_url = None
-
-        for card in artist_cards:
-            # Der Name steht in .mini_card-title
-            name_elem = card.locator(".mini_card-title")
-            if name_elem.count() > 0:
-                card_name = name_elem.inner_text().strip()
-                # Falls der Name passt (case-insensitive)
-                if card_name.lower() == main_artist.lower():
-                    # Der Link ist das <a> Tag in der Card
-                    link_elem = card.locator("a.mini_card")
-                    target_profile_url = link_elem.get_attribute("href")
-                    if target_profile_url:
-                        link_elem.click()
-                        break
-
-        if not target_profile_url:
-            log_status(f"  ⚠️ Kein präzises Profil für '{main_artist}' in den Artist-Cards gefunden.")
-            # Fallback: Versuche den ersten Artist-Link überhaupt
-            fallback_link = page.locator("mini-artist-card a.mini_card").first
-            if fallback_link.count() > 0:
-                log_status("  💡 Nutze ersten verfügbaren Artist-Treffer als Fallback.")
-                fallback_link.click()
-            else:
-                return result
-
-        log_status(f"  ✅ Künstler-Profil von '{main_artist}' geöffnet.")
-
-        # STEP 3: "Show all songs" öffnen
-        all_songs_link = page.get_by_role("link", name=re.compile("Show all songs", re.I))
-        all_songs_link.click()
-        log_status("  📂 Vollständige Songliste geöffnet.")
-
-        # STEP 4: In der Liste nach dem Song suchen (via mini-song-card)
-        best_link = None
-        max_score = 0
-
-        # Bis zu 5 Scroll-Versuche für Infinite Scroll
-        for scroll_attempt in range(5):
-            # Warten auf Song-Karten
-            page.wait_for_selector("mini-song-card, .mini_card", timeout=10000)
-
-            # Wir nutzen BeautifulSoup für das schnelle Scannen der Liste
-            soup = BeautifulSoup(page.content(), "html.parser")
-            # Wir suchen mini-song-card oder .mini_card (je nachdem was geladen wurde)
-            song_cards = soup.select("mini-song-card a.mini_card, .profile_list_item a.mini_card")
-
-            for card in song_cards:
-                title_elem = card.select_one(".mini_card-title")
-                if title_elem:
-                    title_text = title_elem.get_text(strip=True)
-                    compare_text = f"{title_text} {main_artist}"
-                    score: float = calculate_validation_score(compare_text, target_string, artists)
-
-                    if score > max_score:
-                        max_score = score
-                        best_link = card.get("href")
-
-            if max_score > 0.95:
-                break
-
-            page.mouse.wheel(0, 2000)
-            time.sleep(1)
-
-        if best_link and max_score > MATCH_THRESHOLD:
-            if not best_link.startswith("http"):
-                best_link = GENIUS_URL + best_link
-            log_status(f"  ✅ Song gefunden: '{best_link}' ({max_score:.2f} Score)")
-            result["song_url"] = best_link
-
-        # STEP 5: Komplette Artist-Songs-Liste sammeln.
-        # WHY: Auch wenn der Match-Loop nach 0.95-Score abgebrochen hat,
-        # wollen wir die gesamte Liste fuer downstream-Konsumenten.
-        result["artist_songs"] = _scroll_collect_artist_songs(page)
-
+        return _find_song_in_search_results(page, queries, target_string, artists)
     except Exception as e:
-        log_status(f"  ⚠️ Fehler bei der präzisen Profil-Suche: {e}")
-
-    return result
+        log_status(f"  ⚠️ Fehler in der Song-Suche: {e}")
+        raise
 
 
 # DEF: Lädt Song-Seite und extrahiert Soup
